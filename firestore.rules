@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read/write their own profile
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    // Parties: members can read, creator can write top-level
+    match /parties/{partyId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.memberIds;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.memberIds;
+
+      // Members subcollection
+      match /members/{memberId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Venues subcollection (cached, written by Cloud Functions)
+      match /venues/{venueId} {
+        allow read: if request.auth != null;
+        // Only Cloud Functions write venues
+      }
+
+      // Swipes: members can create their own swipes, read all
+      match /swipes/{swipeId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null
+          && request.resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Offers: readable by all authenticated users
+    match /offers/{offerId} {
+      allow read: if request.auth != null;
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Nom Nominate",
+    "slug": "nom-nominate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nomnominate",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1a1a2e"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nomnominate.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.nomnominate.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ]
+  }
+}

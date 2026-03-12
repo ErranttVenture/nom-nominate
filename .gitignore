@@ -1,0 +1,30 @@
+node_modules/
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Firebase
+functions/lib/
+functions/node_modules/
+
+# Secrets
+.env
+.env.local
+google-services.json
+GoogleService-Info.plist
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
