@@ -22,7 +22,7 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.nomnominate.app",
-      "versionCode": 7
+      "versionCode": 9
     },
     "plugins": [
       "expo-router",
