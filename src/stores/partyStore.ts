@@ -10,6 +10,9 @@ interface PartyState {
   swipeCount: number;
   results: VenueVotes[];
 
+  // Solo favorites
+  soloFavorites: Venue[];
+
   // Party list
   activeParties: Party[];
   pastParties: Party[];
@@ -23,6 +26,8 @@ interface PartyState {
   setResults: (results: VenueVotes[]) => void;
   setActiveParties: (parties: Party[]) => void;
   setPastParties: (parties: Party[]) => void;
+  addSoloFavorite: (venue: Venue) => void;
+  clearSoloFavorites: () => void;
   reset: () => void;
 }
 
@@ -33,6 +38,7 @@ export const usePartyStore = create<PartyState>((set) => ({
   currentVenueIndex: 0,
   swipeCount: 0,
   results: [],
+  soloFavorites: [],
   activeParties: [],
   pastParties: [],
 
@@ -44,5 +50,11 @@ export const usePartyStore = create<PartyState>((set) => ({
   setResults: (results) => set({ results }),
   setActiveParties: (activeParties) => set({ activeParties }),
   setPastParties: (pastParties) => set({ pastParties }),
-  reset: () => set({ currentParty: null, members: [], venues: [], currentVenueIndex: 0, swipeCount: 0, results: [] }),
+  addSoloFavorite: (venue) => set((state) => ({
+    soloFavorites: state.soloFavorites.some((v) => v.id === venue.id)
+      ? state.soloFavorites
+      : [...state.soloFavorites, venue],
+  })),
+  clearSoloFavorites: () => set({ soloFavorites: [] }),
+  reset: () => set({ currentParty: null, members: [], venues: [], currentVenueIndex: 0, swipeCount: 0, results: [], soloFavorites: [] }),
 }));

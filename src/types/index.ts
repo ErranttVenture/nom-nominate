@@ -29,7 +29,7 @@ export interface PartyMember {
   userId: string;
   displayName: string;
   joinedAt: Date;
-  status: 'invited' | 'joined' | 'swiping' | 'done';
+  status: 'declined' | 'invited' | 'joined' | 'swiping' | 'done';
   swipeCount: number;
 }
 

@@ -48,6 +48,15 @@ export default function HomeScreen() {
         <Text style={styles.newPartyText}>New Party</Text>
       </TouchableOpacity>
 
+      {/* Solo Browse Button */}
+      <TouchableOpacity
+        style={styles.soloBrowseBtn}
+        onPress={() => router.push('/solo')}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.soloBrowseText}>Browse Solo</Text>
+      </TouchableOpacity>
+
       {/* Active Parties */}
       {activeParties.length > 0 && (
         <>
@@ -166,6 +175,27 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: COLORS.primary,
+  },
+  soloBrowseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 28,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  soloBrowseText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
   },
   sectionTitle: {
     fontSize: 13,

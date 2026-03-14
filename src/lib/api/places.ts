@@ -1,6 +1,6 @@
 import type { Venue } from '@/types';
 
-const GOOGLE_PLACES_API_KEY = 'YOUR_GOOGLE_PLACES_API_KEY';
+const GOOGLE_PLACES_API_KEY = 'AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q';
 const BASE_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 
 interface SearchVenuesParams {
@@ -40,7 +40,7 @@ export async function searchVenues({
     },
     body: JSON.stringify({
       includedTypes: ['restaurant', 'bar', 'cafe'],
-      maxResultCount: 60,
+      maxResultCount: 20,
       locationRestriction: {
         circle: {
           center: { latitude: lat, longitude: lng },
@@ -51,6 +51,11 @@ export async function searchVenues({
   });
 
   const data = await response.json();
+
+  if (!response.ok) {
+    console.error('Places API error:', response.status, data);
+    return [];
+  }
 
   if (!data.places) return [];
 

@@ -19,10 +19,9 @@ interface VenueCardProps {
   venue: Venue;
   onSwipeLeft: (venueId: string) => void;
   onSwipeRight: (venueId: string) => void;
-  isPriority?: boolean;
 }
 
-export function VenueCard({ venue, onSwipeLeft, onSwipeRight, isPriority }: VenueCardProps) {
+export function VenueCard({ venue, onSwipeLeft, onSwipeRight }: VenueCardProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
@@ -80,13 +79,6 @@ export function VenueCard({ venue, onSwipeLeft, onSwipeRight, isPriority }: Venu
           ) : (
             <View style={[styles.image, styles.placeholderImage]}>
               <Text style={styles.placeholderEmoji}>🍽️</Text>
-            </View>
-          )}
-
-          {/* Priority badge */}
-          {isPriority && (
-            <View style={styles.priorityBadge}>
-              <Text style={styles.priorityText}>🔥 Popular in your party</Text>
             </View>
           )}
 

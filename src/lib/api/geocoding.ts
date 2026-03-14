@@ -1,4 +1,4 @@
-const GOOGLE_GEOCODING_API_KEY = 'YOUR_GOOGLE_GEOCODING_API_KEY';
+const GOOGLE_GEOCODING_API_KEY = 'AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q';
 const BASE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 
 interface GeoResult {

@@ -3,12 +3,12 @@
 // from Firebase Console > Project Settings > General > Your apps
 
 export const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q',
+  authDomain: 'nom-nominate.firebaseapp.com',
+  projectId: 'nom-nominate',
+  storageBucket: 'nom-nominate.firebasestorage.app',
+  messagingSenderId: '964967620859',
+  appId: '1:964967620859:web:8e571943838f956884505e',
 };
 
 // Firestore collection names

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,15 +15,20 @@ import { COLORS, PARTY } from '@/constants';
 import { usePartyStore } from '@/stores/partyStore';
 import { useSwipeSession } from '@/hooks/useSwipeSession';
 import { CardStack } from '@/components/cards/CardStack';
-import { SwipeService } from '@/lib/services';
+import { SwipeService, PartyService } from '@/lib/services';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function SwipeScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
-  const { party, venues, currentVenueIndex, swipeCount } = usePartyStore();
+  const party = usePartyStore((s) => s.currentParty);
+  const venues = usePartyStore((s) => s.venues);
+  const currentVenueIndex = usePartyStore((s) => s.currentVenueIndex);
+  const swipeCount = usePartyStore((s) => s.swipeCount);
+  const setVenues = usePartyStore((s) => s.setVenues);
   const { loading, partyStatus, nominatedVenueId } = useSwipeSession(partyId!);
+  const [expandingRadius, setExpandingRadius] = useState(false);
 
   // React to nomination or results status changes
   useEffect(() => {
@@ -39,6 +45,9 @@ export default function SwipeScreen() {
     }
   }, [partyStatus, nominatedVenueId]);
 
+  const incrementSwipeCount = usePartyStore((s) => s.incrementSwipeCount);
+  const nextVenueAction = usePartyStore((s) => s.nextVenue);
+
   const handleSwipe = useCallback(
     async (direction: 'left' | 'right') => {
       const venue = venues[currentVenueIndex];
@@ -51,6 +60,10 @@ export default function SwipeScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
+      // Advance card + counter (single source of truth)
+      nextVenueAction();
+      incrementSwipeCount();
+
       // Record swipe
       await SwipeService.recordSwipe({
         partyId: partyId!,
@@ -58,16 +71,55 @@ export default function SwipeScreen() {
         direction,
       });
     },
-    [partyId, venues, currentVenueIndex]
+    [partyId, venues, currentVenueIndex, nextVenueAction, incrementSwipeCount]
   );
 
   const handleSwipeLeft = useCallback(() => handleSwipe('left'), [handleSwipe]);
   const handleSwipeRight = useCallback(() => handleSwipe('right'), [handleSwipe]);
 
+  const handleIncreaseRadius = useCallback(async () => {
+    if (!party) return;
+    const currentRadius = party.radiusMiles;
+    const options = PARTY.RADIUS_OPTIONS;
+    const currentIndex = options.indexOf(currentRadius as any);
+
+    if (currentIndex >= options.length - 1) {
+      Alert.alert(
+        'Maximum Radius',
+        'You\'re already searching the maximum radius (25 mi). Try reviewing your results!',
+      );
+      return;
+    }
+
+    const newRadius = options[currentIndex + 1];
+    setExpandingRadius(true);
+
+    try {
+      // Fetch new venues with expanded radius
+      const allVenues = await PartyService.getPartyVenues(partyId!);
+      const swipedIds = await SwipeService.getUserSwipedVenueIds(partyId!);
+      const unswiped = allVenues.filter((v) => !swipedIds.has(v.id));
+
+      if (unswiped.length === 0) {
+        Alert.alert(
+          'No New Venues',
+          `No additional venues found within ${newRadius} miles. Try reviewing your results!`,
+        );
+      } else {
+        setVenues(unswiped);
+        // Reset venue index in the store
+        usePartyStore.setState({ currentVenueIndex: 0 });
+      }
+    } catch (error) {
+      console.error('Failed to expand radius:', error);
+    } finally {
+      setExpandingRadius(false);
+    }
+  }, [party, partyId, setVenues]);
+
   const currentVenue = venues[currentVenueIndex];
   const nextVenue = venues[currentVenueIndex + 1];
   const hasMoreCards = currentVenueIndex < venues.length;
-  const showFallbackBanner = swipeCount >= PARTY.MIN_SWIPES_FOR_FALLBACK;
 
   if (loading) {
     return (
@@ -103,11 +155,36 @@ export default function SwipeScreen() {
           />
         ) : (
           <View style={styles.noMoreCards}>
-            <Text style={styles.noMoreEmoji}>🤷</Text>
-            <Text style={styles.noMoreTitle}>No more venues</Text>
+            <Text style={styles.noMoreEmoji}>🎉</Text>
+            <Text style={styles.noMoreTitle}>You've seen them all!</Text>
             <Text style={styles.noMoreSubtitle}>
-              We've shown you all the venues in this area.
+              You've swiped through all {venues.length} venues in this area.
             </Text>
+
+            {/* Review Results Button */}
+            <TouchableOpacity
+              style={styles.reviewBtn}
+              onPress={() =>
+                router.push({ pathname: '/party/results', params: { partyId } })
+              }
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reviewBtnText}>Review Results 📊</Text>
+            </TouchableOpacity>
+
+            {/* Increase Radius Button */}
+            <TouchableOpacity
+              style={styles.expandBtn}
+              onPress={handleIncreaseRadius}
+              disabled={expandingRadius}
+              activeOpacity={0.7}
+            >
+              {expandingRadius ? (
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              ) : (
+                <Text style={styles.expandBtnText}>Search Wider Area 🗺️</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -130,18 +207,6 @@ export default function SwipeScreen() {
             <Text style={styles.likeBtnText}>♥</Text>
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* Fallback "Show Results" Banner */}
-      {showFallbackBanner && (
-        <TouchableOpacity
-          style={styles.resultsBanner}
-          onPress={() =>
-            router.push({ pathname: '/party/results', params: { partyId } })
-          }
-        >
-          <Text style={styles.resultsBannerText}>Show Results 📊</Text>
-        </TouchableOpacity>
       )}
     </SafeAreaView>
   );
@@ -166,11 +231,11 @@ const styles = StyleSheet.create({
   counterText: { fontSize: 13, fontWeight: '600', color: COLORS.textLight },
   cardContainer: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 16, overflow: 'hidden',
   },
   swipeButtons: {
     flexDirection: 'row', justifyContent: 'center', gap: 40,
-    paddingVertical: 16, paddingBottom: 40,
+    paddingVertical: 16, paddingBottom: 40, zIndex: 10,
   },
   swipeBtn: {
     width: 64, height: 64, borderRadius: 32,
@@ -187,13 +252,32 @@ const styles = StyleSheet.create({
   noMoreTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   noMoreSubtitle: {
     fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22,
+    marginBottom: 24,
   },
-  resultsBanner: {
-    position: 'absolute', bottom: 120, alignSelf: 'center',
-    backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 14,
-    borderRadius: 20,
-    shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
+  reviewBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  resultsBannerText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  reviewBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  expandBtn: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  expandBtnText: { color: COLORS.primary, fontSize: 17, fontWeight: '700' },
 });

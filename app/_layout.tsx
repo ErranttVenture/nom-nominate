@@ -32,6 +32,12 @@ export default function RootLayout() {
           options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
         />
         <Stack.Screen name="party/results" />
+        <Stack.Screen
+          name="solo/index"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen name="solo/browse" />
+        <Stack.Screen name="tutorial" />
       </Stack>
     </GestureHandlerRootView>
   );

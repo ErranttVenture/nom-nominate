@@ -3,7 +3,7 @@
     "name": "Nom Nominate",
     "slug": "nom-nominate",
     "owner": "errantventure",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "scheme": "nomnominate",
     "userInterfaceStyle": "light",
@@ -21,11 +21,18 @@
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.nomnominate.app"
+      "package": "com.nomnominate.app",
+      "versionCode": 7
     },
     "plugins": [
       "expo-router",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e933dfe6-278a-4280-af27-3f928dc61b1f"
+      }
+    }
   }
 }

@@ -74,10 +74,25 @@ export default function PartyLobbyScreen() {
     );
   }
 
+  const getMemberBadge = (member: PartyMember) => {
+    if (member.status === 'declined') {
+      return { label: 'Declined', style: styles.badgeDeclined, textStyle: styles.badgeTextDeclined };
+    }
+    if (member.status === 'invited') {
+      return { label: 'Invited', style: styles.badgeInvited, textStyle: styles.badgeTextInvited };
+    }
+    if (member.status === 'done' || member.swipeCount >= 20) {
+      return { label: 'Noms Nominated', style: styles.badgeNominated, textStyle: styles.badgeTextNominated };
+    }
+    // joined or swiping but not done
+    return { label: 'Nominating Needed', style: styles.badgeNeeded, textStyle: styles.badgeTextNeeded };
+  };
+
   const renderMember = ({ item, index }: { item: PartyMember; index: number }) => {
     const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
     const isYou = item.userId === user?.id;
     const initial = item.displayName.charAt(0).toUpperCase();
+    const badge = getMemberBadge(item);
 
     return (
       <View style={styles.memberRow}>
@@ -89,22 +104,14 @@ export default function PartyLobbyScreen() {
             {item.displayName}{isYou ? ' (you)' : ''}
           </Text>
           <Text style={styles.memberStatus}>
-            {item.status === 'invited' ? 'Invited' : `Joined ${formatTimeAgo(item.joinedAt)}`}
+            {item.status === 'invited' || item.status === 'declined'
+              ? 'Invited'
+              : `Joined ${formatTimeAgo(item.joinedAt)}`}
           </Text>
         </View>
-        <View
-          style={[
-            styles.memberBadge,
-            item.status === 'invited' ? styles.badgeWaiting : styles.badgeReady,
-          ]}
-        >
-          <Text
-            style={[
-              styles.badgeText,
-              item.status === 'invited' ? styles.badgeTextWaiting : styles.badgeTextReady,
-            ]}
-          >
-            {item.status === 'invited' ? 'Waiting' : 'Ready'}
+        <View style={[styles.memberBadge, badge.style]}>
+          <Text style={[styles.badgeText, badge.textStyle]}>
+            {badge.label}
           </Text>
         </View>
       </View>
@@ -115,8 +122,8 @@ export default function PartyLobbyScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>←</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/')}>
+          <Text style={styles.backBtnText}>🏠</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Party Lobby</Text>
       </View>
@@ -226,11 +233,15 @@ const styles = StyleSheet.create({
   memberName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   memberStatus: { fontSize: 12, color: COLORS.textLight },
   memberBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeReady: { backgroundColor: 'rgba(46,204,113,0.12)' },
-  badgeWaiting: { backgroundColor: 'rgba(255,107,53,0.12)' },
+  badgeDeclined: { backgroundColor: 'rgba(231,76,60,0.12)' },
+  badgeTextDeclined: { color: COLORS.danger },
+  badgeInvited: { backgroundColor: 'rgba(255,107,53,0.12)' },
+  badgeTextInvited: { color: COLORS.primary },
+  badgeNeeded: { backgroundColor: 'rgba(108,92,231,0.12)' },
+  badgeTextNeeded: { color: '#6c5ce7' },
+  badgeNominated: { backgroundColor: 'rgba(46,204,113,0.12)' },
+  badgeTextNominated: { color: COLORS.success },
   badgeText: { fontSize: 11, fontWeight: '700' },
-  badgeTextReady: { color: COLORS.success },
-  badgeTextWaiting: { color: COLORS.primary },
   bottomActions: { paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
