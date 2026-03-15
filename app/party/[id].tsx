@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Linking from 'expo-linking';
 import { COLORS } from '@/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { usePartyLobby } from '@/hooks/usePartyLobby';
@@ -24,16 +23,26 @@ export default function PartyLobbyScreen() {
   const { id: partyId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { party, members, loading } = usePartyLobby(partyId!);
+  const { party, members, loading, error } = usePartyLobby(partyId!);
   const [starting, setStarting] = useState(false);
+
+  // Show error and navigate back if party can't be loaded
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error, [
+        { text: 'OK', onPress: () => router.replace('/') },
+      ]);
+    }
+  }, [error]);
 
   const isCreator = party?.creatorId === user?.id;
 
   const handleInvite = async () => {
-    const link = Linking.createURL(`/party/${partyId}`);
+    const link = `https://nom-nominate.web.app/party/${partyId}`;
     try {
       await Share.share({
         message: `Join my Nom Nominate party "${party?.name}"! 🍽️\n\n${link}`,
+        url: link,
       });
     } catch (error) {
       // User cancelled share

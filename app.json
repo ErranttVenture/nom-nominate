@@ -22,11 +22,32 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.nomnominate.app",
-      "versionCode": 9
+      "versionCode": 16,
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "nom-nominate.web.app",
+              "pathPrefix": "/party"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "plugins": [
       "expo-router",
-      "expo-asset"
+      "expo-asset",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/messaging"
     ],
     "extra": {
       "router": {},

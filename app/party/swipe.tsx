@@ -95,6 +95,9 @@ export default function SwipeScreen() {
     setExpandingRadius(true);
 
     try {
+      // Update the party radius and regenerate venues
+      await PartyService.updatePartyRadius(partyId!, newRadius as 5 | 10 | 15 | 25);
+
       // Fetch new venues with expanded radius
       const allVenues = await PartyService.getPartyVenues(partyId!);
       const swipedIds = await SwipeService.getUserSwipedVenueIds(partyId!);

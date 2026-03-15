@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { PartyService } from '@/lib/services';
-import { MOCK_VENUES } from '@/lib/mock/data';
 import type { Party, Venue } from '@/types';
 
 /**
@@ -18,7 +17,8 @@ export function useNominatedVenue(partyId: string, venueId: string) {
       if (partyData) setParty(partyData);
 
       if (venueId) {
-        const v = MOCK_VENUES.find((mv) => mv.id === venueId);
+        const partyVenues = await PartyService.getPartyVenues(partyId);
+        const v = partyVenues.find((mv) => mv.id === venueId);
         if (v) setVenue(v);
       }
     };

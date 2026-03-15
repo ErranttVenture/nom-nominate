@@ -228,8 +228,38 @@ export const mockParties$ = {
     return id;
   },
 
-  joinParty: async (_partyId: string) => {
+  joinParty: async (partyId: string) => {
     await delay(300);
+
+    // Find the party
+    const party = [...mockParties, ...mockPastParties].find((p) => p.id === partyId);
+    if (!party) throw new Error('Party not found.');
+
+    const userId = MOCK_USER.id;
+
+    // Check if already a member
+    if (party.memberIds.includes(userId)) return;
+
+    // Add to party's memberIds
+    party.memberIds.push(userId);
+    party.updatedAt = new Date();
+
+    // Add to member cache
+    if (!partyMemberCache[partyId]) {
+      partyMemberCache[partyId] = [];
+    }
+    const newMember: PartyMember = {
+      userId,
+      displayName: MOCK_USER.displayName,
+      joinedAt: new Date(),
+      status: 'joined',
+      swipeCount: 0,
+    };
+    partyMemberCache[partyId].push(newMember);
+
+    // Notify listeners so the lobby updates in real-time
+    memberListeners.forEach((cb) => cb(partyMemberCache[partyId]));
+    partyListeners.forEach((cb) => cb(party));
   },
 
   getParty: async (partyId: string): Promise<Party | null> => {
@@ -287,6 +317,14 @@ export const mockParties$ = {
       party.status = 'swiping';
       notifyPartyListeners(party);
     }
+
+    // Update all members to 'swiping' status
+    if (partyMemberCache[partyId]) {
+      partyMemberCache[partyId].forEach((m) => {
+        m.status = 'swiping';
+      });
+      memberListeners.forEach((cb) => cb(partyMemberCache[partyId]));
+    }
   },
 
   // Real-time simulation: subscribe to party changes
@@ -328,18 +366,82 @@ export const mockSwipes = {
       mockRightSwipeCounts[input.venueId] =
         (mockRightSwipeCounts[input.venueId] ?? 0) + 1;
     }
+
+    // Update current user's member swipeCount and status
+    const userId = MOCK_USER.id;
+    const members = partyMemberCache[input.partyId];
+    if (members) {
+      const member = members.find((m) => m.userId === userId);
+      if (member) {
+        member.swipeCount = mockSwipeCount;
+        if (mockSwipeCount >= 20 && member.status !== 'done') {
+          member.status = 'done';
+        }
+        memberListeners.forEach((cb) => cb(members));
+      }
+    }
   },
 
   getUserSwipedVenueIds: async (_partyId: string): Promise<Set<string>> => {
     return new Set(mockSwipedVenueIds);
   },
 
-  getVoteResults: async (_partyId: string): Promise<VenueVotes[]> => {
+  getVoteResults: async (partyId: string): Promise<VenueVotes[]> => {
     await delay(300);
-    return [...MOCK_RESULTS];
+
+    // Build results from actual swipe data
+    const venueIds = Object.keys(mockRightSwipeCounts);
+    if (venueIds.length === 0) {
+      return [...MOCK_RESULTS]; // Fallback if no swipes recorded yet
+    }
+
+    const venues = partyVenueCache[partyId] ?? MOCK_VENUES;
+    const party = [...mockParties, ...mockPastParties].find((p) => p.id === partyId);
+    const totalMembers = party ? party.memberIds.length : 1;
+
+    const results: VenueVotes[] = venueIds
+      .map((venueId) => {
+        const venue = venues.find((v) => v.id === venueId);
+        const rightSwipes = mockRightSwipeCounts[venueId] ?? 0;
+        return {
+          venueId,
+          venueName: venue?.name ?? 'Unknown Venue',
+          cuisine: venue?.cuisine ?? 'Unknown',
+          rightSwipes,
+          totalMembers,
+          percentage: Math.round((rightSwipes / totalMembers) * 100),
+        };
+      })
+      .sort((a, b) => b.rightSwipes - a.rightSwipes);
+
+    return results;
   },
 
   getSwipeCount: () => mockSwipeCount,
+};
+
+// ===== RADIUS UPDATE =====
+
+export const mockRadius = {
+  updatePartyRadius: async (partyId: string, newRadius: 5 | 10 | 15 | 25): Promise<Venue[]> => {
+    await delay(500);
+    const party = mockParties.find((p) => p.id === partyId);
+    if (!party) throw new Error('Party not found');
+
+    party.radiusMiles = newRadius;
+    party.updatedAt = new Date();
+
+    // Regenerate venues with the new radius
+    partyVenueCache[partyId] = generateVenuesForLocation(
+      party.centerLat,
+      party.centerLng,
+      newRadius,
+      partyId,
+    );
+
+    notifyPartyListeners(party);
+    return partyVenueCache[partyId];
+  },
 };
 
 // ===== NOMINATION SIMULATION =====
@@ -375,18 +477,94 @@ export const mockGeocoding = {
     await delay(300);
     // Return approximate coordinates for common zip codes
     const known: Record<string, { lat: number; lng: number }> = {
-      '90210': { lat: 34.0901, lng: -118.4065 },
-      '10001': { lat: 40.7484, lng: -73.9967 },
-      '60601': { lat: 41.8819, lng: -87.6278 },
-      '94102': { lat: 37.7749, lng: -122.4194 },
-      '30301': { lat: 33.7490, lng: -84.3880 },
-      '98101': { lat: 47.6062, lng: -122.3321 },
-      '33101': { lat: 25.7617, lng: -80.1918 },
-      '02101': { lat: 42.3601, lng: -71.0589 },
-      '80201': { lat: 39.7392, lng: -104.9903 },
-      '78201': { lat: 29.4241, lng: -98.4936 },
+      // Northeast
+      '02101': { lat: 42.3601, lng: -71.0589 },   // Boston
+      '06101': { lat: 41.7658, lng: -72.6734 },   // Hartford
+      '07102': { lat: 40.7357, lng: -74.1724 },   // Newark
+      '10001': { lat: 40.7484, lng: -73.9967 },   // New York
+      '14214': { lat: 42.9538, lng: -78.8186 },   // Buffalo
+      '15201': { lat: 40.4406, lng: -79.9959 },   // Pittsburgh
+      '19101': { lat: 39.9526, lng: -75.1652 },   // Philadelphia
+      // Southeast
+      '20001': { lat: 38.9072, lng: -77.0369 },   // Washington DC
+      '23219': { lat: 37.5407, lng: -77.4360 },   // Richmond
+      '27601': { lat: 35.7796, lng: -78.6382 },   // Raleigh
+      '28201': { lat: 35.2271, lng: -80.8431 },   // Charlotte
+      '30301': { lat: 33.7490, lng: -84.3880 },   // Atlanta
+      '32801': { lat: 28.5383, lng: -81.3792 },   // Orlando
+      '33101': { lat: 25.7617, lng: -80.1918 },   // Miami
+      '37201': { lat: 36.1627, lng: -86.7816 },   // Nashville
+      // Midwest
+      '43215': { lat: 39.9612, lng: -82.9988 },   // Columbus
+      '48201': { lat: 42.3314, lng: -83.0458 },   // Detroit
+      '53201': { lat: 43.0389, lng: -87.9065 },   // Milwaukee
+      '55401': { lat: 44.9778, lng: -93.2650 },   // Minneapolis
+      '60601': { lat: 41.8819, lng: -87.6278 },   // Chicago
+      '63101': { lat: 38.6270, lng: -90.1994 },   // St. Louis
+      '64101': { lat: 39.0997, lng: -94.5786 },   // Kansas City
+      // Texas & South Central
+      '70112': { lat: 29.9511, lng: -90.0715 },   // New Orleans
+      '73301': { lat: 30.2672, lng: -97.7431 },   // Austin
+      '75201': { lat: 32.7767, lng: -96.7970 },   // Dallas
+      '77001': { lat: 29.7604, lng: -95.3698 },   // Houston
+      '78201': { lat: 29.4241, lng: -98.4936 },   // San Antonio
+      // Mountain West
+      '80201': { lat: 39.7392, lng: -104.9903 },  // Denver
+      '84101': { lat: 40.7608, lng: -111.8910 },  // Salt Lake City
+      '85001': { lat: 33.4484, lng: -112.0740 },  // Phoenix
+      '87101': { lat: 35.0844, lng: -106.6504 },  // Albuquerque
+      // West Coast
+      '89101': { lat: 36.1699, lng: -115.1398 },  // Las Vegas
+      '90210': { lat: 34.0901, lng: -118.4065 },  // Beverly Hills
+      '92101': { lat: 32.7157, lng: -117.1611 },  // San Diego
+      '94102': { lat: 37.7749, lng: -122.4194 },  // San Francisco
+      '97201': { lat: 45.5152, lng: -122.6784 },  // Portland
+      '98101': { lat: 47.6062, lng: -122.3321 },  // Seattle
     };
-    return known[zipCode] ?? { lat: 34.0522, lng: -118.2437 }; // default LA
+
+    if (known[zipCode]) {
+      return known[zipCode];
+    }
+
+    // For unknown zips, approximate coords based on zip prefix region
+    // instead of always returning LA. Uses the first digit of the zip code
+    // to map to a broad US region, then adds a small deterministic offset
+    // based on the full zip so different zips get slightly different locations.
+    //   0xxxx = Northeast (CT, MA, ME, NH, NJ, NY, PR, RI, VT)
+    //   1xxxx = Northeast (DE, NY, PA)
+    //   2xxxx = Mid-Atlantic / Southeast (DC, MD, NC, SC, VA, WV)
+    //   3xxxx = Southeast (AL, FL, GA, MS, TN)
+    //   4xxxx = Midwest / Great Lakes (IN, KY, MI, OH)
+    //   5xxxx = Upper Midwest (IA, MN, MT, ND, NE, SD, WI)
+    //   6xxxx = Central (IL, KS, MO, NE)
+    //   7xxxx = Texas / South Central (AR, LA, OK, TX)
+    //   8xxxx = Mountain West (AZ, CO, ID, NM, NV, UT, WY)
+    //   9xxxx = West Coast (AK, CA, HI, OR, WA)
+    const regionCenters: Record<string, { lat: number; lng: number }> = {
+      '0': { lat: 42.36, lng: -71.06 },   // Boston area
+      '1': { lat: 40.75, lng: -73.99 },   // NYC area
+      '2': { lat: 38.90, lng: -77.04 },   // DC area
+      '3': { lat: 33.75, lng: -84.39 },   // Atlanta area
+      '4': { lat: 39.96, lng: -83.00 },   // Columbus area
+      '5': { lat: 44.98, lng: -93.27 },   // Minneapolis area
+      '6': { lat: 41.88, lng: -87.63 },   // Chicago area
+      '7': { lat: 29.76, lng: -95.37 },   // Houston area
+      '8': { lat: 39.74, lng: -104.99 },  // Denver area
+      '9': { lat: 37.77, lng: -122.42 },  // SF area
+    };
+
+    const prefix = zipCode.charAt(0);
+    const center = regionCenters[prefix] ?? { lat: 39.83, lng: -98.58 }; // geographic center of US
+
+    // Deterministic offset from the zip's numeric value so each zip gets unique coords
+    const zipNum = parseInt(zipCode, 10) || 0;
+    const latOffset = ((zipNum % 100) - 50) * 0.01;  // +/- ~0.5 degrees
+    const lngOffset = ((Math.floor(zipNum / 100) % 100) - 50) * 0.01;
+
+    return {
+      lat: center.lat + latOffset,
+      lng: center.lng + lngOffset,
+    };
   },
 };
 

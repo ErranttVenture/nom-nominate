@@ -1,38 +1,37 @@
 /**
  * Service abstraction layer.
  *
- * Currently wired to mock data for local development.
- * When ready to connect Firebase, replace the mock imports with real
- * Firebase service calls — no other files need to change.
+ * USE_MOCK = false → real Firebase backend for multiplayer.
+ * Set USE_MOCK = true for local development with in-memory mock data.
  */
 
 import type { Party, PartyMember, Venue, VenueVotes } from '@/types';
-import {
-  mockAuth,
-  mockParties$,
-  mockSwipes,
-  mockGeocoding,
-} from '@/lib/mock/services';
 
-export const USE_MOCK = true;
+export const USE_MOCK = false;
+
+// Firebase imports (real backend)
+import * as firebaseAuth from '@/lib/firebase/auth';
+import * as firebaseParties from '@/lib/firebase/parties';
+import * as firebaseSwipes from '@/lib/firebase/swipes';
+import { geocodeZipCode as realGeocodeZipCode } from '@/lib/api/geocoding';
 
 // ===== AUTH SERVICE =====
 
 export const AuthService = {
   signInWithPhone: async (phone: string) => {
-    return mockAuth.signInWithPhone(phone);
+    return firebaseAuth.signInWithPhone(phone);
   },
 
   confirmVerificationCode: async (confirmation: any, code: string) => {
-    return mockAuth.confirmVerificationCode(confirmation, code);
+    return firebaseAuth.confirmVerificationCode(confirmation, code);
   },
 
   updateUserProfile: async (displayName: string) => {
-    return mockAuth.updateUserProfile(displayName);
+    return firebaseAuth.updateUserProfile(displayName);
   },
 
   signOut: async () => {
-    return mockAuth.signOut();
+    return firebaseAuth.signOutUser();
   },
 };
 
@@ -42,43 +41,49 @@ export const PartyService = {
   createParty: async (input: {
     name: string;
     zipCode: string;
-    radiusMiles: number;
+    radiusMiles: 5 | 10 | 15 | 25;
     date?: string;
     creatorId: string;
   }): Promise<string> => {
-    return mockParties$.createParty(input);
+    return firebaseParties.createParty(input);
   },
 
   joinParty: async (partyId: string) => {
-    return mockParties$.joinParty(partyId);
+    return firebaseParties.joinParty(partyId);
   },
 
   getParty: async (partyId: string): Promise<Party | null> => {
-    return mockParties$.getParty(partyId);
+    return firebaseParties.getParty(partyId);
   },
 
   getUserParties: async (): Promise<{ active: Party[]; past: Party[] }> => {
-    return mockParties$.getUserParties();
+    return firebaseParties.getUserParties();
   },
 
   getPartyMembers: async (partyId: string): Promise<PartyMember[]> => {
-    return mockParties$.getPartyMembers(partyId);
+    return firebaseParties.getPartyMembers(partyId);
   },
 
   getPartyVenues: async (partyId: string): Promise<Venue[]> => {
-    return mockParties$.getPartyVenues(partyId);
+    return firebaseParties.getPartyVenues(partyId);
   },
 
   startSwipingSession: async (partyId: string) => {
-    return mockParties$.startSwipingSession(partyId);
+    return firebaseParties.startSwipingSession(partyId);
   },
 
   onPartySnapshot: (partyId: string, callback: (party: Party) => void) => {
-    return mockParties$.onPartySnapshot(partyId, callback);
+    return firebaseParties.onPartySnapshot(partyId, (party) => {
+      if (party) callback(party);
+    });
   },
 
   onMembersSnapshot: (partyId: string, callback: (members: PartyMember[]) => void) => {
-    return mockParties$.onMembersSnapshot(partyId, callback);
+    return firebaseParties.onMembersSnapshot(partyId, callback);
+  },
+
+  updatePartyRadius: async (partyId: string, newRadius: 5 | 10 | 15 | 25): Promise<Venue[]> => {
+    return firebaseParties.updatePartyRadius(partyId, newRadius);
   },
 };
 
@@ -90,15 +95,15 @@ export const SwipeService = {
     venueId: string;
     direction: 'left' | 'right';
   }) => {
-    return mockSwipes.recordSwipe(input);
+    return firebaseSwipes.recordSwipe(input);
   },
 
   getUserSwipedVenueIds: async (partyId: string): Promise<Set<string>> => {
-    return mockSwipes.getUserSwipedVenueIds(partyId);
+    return firebaseSwipes.getUserSwipedVenueIds(partyId);
   },
 
   getVoteResults: async (partyId: string): Promise<VenueVotes[]> => {
-    return mockSwipes.getVoteResults(partyId);
+    return firebaseSwipes.getVoteResults(partyId);
   },
 };
 
@@ -106,6 +111,6 @@ export const SwipeService = {
 
 export const GeoService = {
   geocodeZipCode: async (zipCode: string): Promise<{ lat: number; lng: number }> => {
-    return mockGeocoding.geocodeZipCode(zipCode);
+    return realGeocodeZipCode(zipCode);
   },
 };

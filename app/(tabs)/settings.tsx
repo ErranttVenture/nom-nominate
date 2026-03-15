@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants';
@@ -46,22 +46,22 @@ export default function SettingsScreen() {
 
         {/* Settings Items */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.settingsItem}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert('Notifications', 'Push notifications coming soon')}>
             <Text style={styles.settingsIcon}>🔔</Text>
             <Text style={styles.settingsLabel}>Notifications</Text>
             <Text style={styles.settingsChevron}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert('Appearance', 'Dark mode coming soon')}>
             <Text style={styles.settingsIcon}>🎨</Text>
             <Text style={styles.settingsLabel}>Appearance</Text>
             <Text style={styles.settingsChevron}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => Linking.openURL('https://nom-nominate.web.app/privacy')}>
             <Text style={styles.settingsIcon}>📄</Text>
             <Text style={styles.settingsLabel}>Privacy Policy</Text>
             <Text style={styles.settingsChevron}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem}>
+          <TouchableOpacity style={styles.settingsItem} onPress={() => Linking.openURL('mailto:support@nomnominate.app')}>
             <Text style={styles.settingsIcon}>❓</Text>
             <Text style={styles.settingsLabel}>Help & Support</Text>
             <Text style={styles.settingsChevron}>›</Text>

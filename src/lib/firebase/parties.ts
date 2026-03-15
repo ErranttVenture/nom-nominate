@@ -9,7 +9,7 @@ import type { Party, PartyMember, Venue } from '@/types';
 interface CreatePartyInput {
   name: string;
   zipCode: string;
-  radiusMiles: number;
+  radiusMiles: 5 | 10 | 15 | 25;
   date?: string;
   creatorId: string;
 }
@@ -188,4 +188,93 @@ export async function getUserParties(): Promise<{ active: Party[]; past: Party[]
     active: parties.filter((p) => p.status === 'lobby' || p.status === 'swiping'),
     past: parties.filter((p) => p.status === 'nominated' || p.status === 'results'),
   };
+}
+
+/**
+ * Real-time listener for a Party document.
+ * Returns an unsubscribe function.
+ */
+export function onPartySnapshot(
+  partyId: string,
+  callback: (party: Party | null) => void
+): () => void {
+  return firestore()
+    .collection(COLLECTIONS.PARTIES)
+    .doc(partyId)
+    .onSnapshot(
+      (doc) => {
+        if (doc.exists) {
+          callback(doc.data() as Party);
+        } else {
+          callback(null);
+        }
+      },
+      (error) => {
+        console.error('Party snapshot error:', error);
+        callback(null);
+      }
+    );
+}
+
+/**
+ * Real-time listener for Party members subcollection.
+ * Returns an unsubscribe function.
+ */
+export function onMembersSnapshot(
+  partyId: string,
+  callback: (members: PartyMember[]) => void
+): () => void {
+  return firestore()
+    .collection(COLLECTIONS.PARTIES)
+    .doc(partyId)
+    .collection(COLLECTIONS.PARTY_MEMBERS)
+    .onSnapshot(
+      (snapshot) => {
+        const members = snapshot.docs.map((doc) => doc.data() as PartyMember);
+        callback(members);
+      },
+      (error) => {
+        console.error('Members snapshot error:', error);
+        callback([]);
+      }
+    );
+}
+
+/**
+ * Update party radius and re-fetch venues.
+ */
+export async function updatePartyRadius(
+  partyId: string,
+  newRadius: 5 | 10 | 15 | 25
+): Promise<Venue[]> {
+  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
+  const partyDoc = await partyRef.get();
+  const party = partyDoc.data() as Party;
+
+  // Update radius
+  await partyRef.update({
+    radiusMiles: newRadius,
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Re-fetch venues with new radius
+  const radiusMeters = newRadius * MILES_TO_METERS;
+  const venues = await searchVenues({
+    lat: party.centerLat,
+    lng: party.centerLng,
+    radiusMeters,
+    date: party.date,
+  });
+
+  // Clear old venues and write new ones
+  const oldVenues = await partyRef.collection(COLLECTIONS.VENUES).get();
+  const batch = firestore().batch();
+  oldVenues.docs.forEach((doc) => batch.delete(doc.ref));
+  venues.forEach((venue) => {
+    const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
+    batch.set(venueRef, { ...venue, priorityScore: 0 });
+  });
+  await batch.commit();
+
+  return venues;
 }

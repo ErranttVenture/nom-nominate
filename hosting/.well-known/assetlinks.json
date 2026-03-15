@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nomnominate.app",
+      "sha256_cert_fingerprints": [
+        "PLACEHOLDER:GET_FROM_PLAY_CONSOLE_SETUP_APP_SIGNING"
+      ]
+    }
+  }
+]

@@ -36,8 +36,14 @@ export default function SoloBrowseScreen() {
   const clearSoloFavorites = usePartyStore((s) => s.clearSoloFavorites);
 
   useEffect(() => {
-    // Clear previous solo favorites when starting a new session
+    // Clear previous solo favorites and reset party-specific state
+    // to prevent stale party data from polluting solo browse
     clearSoloFavorites();
+    usePartyStore.setState({
+      currentParty: null,
+      members: [],
+      results: [],
+    });
 
     const loadVenues = async () => {
       try {

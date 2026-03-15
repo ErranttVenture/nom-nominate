@@ -90,5 +90,5 @@ export async function getCurrentUserProfile() {
     .doc(user.uid)
     .get();
 
-  return doc.exists ? doc.data() : null;
+  return doc.exists ? (doc.data() ?? null) : null;
 }

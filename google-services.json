@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "964967620859",
+    "project_id": "nom-nominate",
+    "storage_bucket": "nom-nominate.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:964967620859:android:83d445d8139eb61684505e",
+        "android_client_info": {
+          "package_name": "com.nomnominate.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAw3zihqkKYprp0YFSIbBOMIvsA0XY00uA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
