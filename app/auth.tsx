@@ -47,6 +47,21 @@ export default function AuthScreen() {
     }
   };
 
+  const handleResendCode = async () => {
+    setLoading(true);
+    setCode('');
+    try {
+      const formattedPhone = phone.startsWith('+') ? phone : `+1${phone}`;
+      const result = await AuthService.signInWithPhone(formattedPhone);
+      setConfirmationResult(result);
+      Alert.alert('Code Sent', 'A new verification code has been sent.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to resend verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyCode = async () => {
     if (code.length !== 6) {
       Alert.alert('Invalid Code', 'Please enter the 6-digit verification code.');
@@ -62,7 +77,19 @@ export default function AuthScreen() {
         router.replace('/(tabs)');
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Invalid verification code.');
+      const errorCode = error.code || error.message || '';
+      if (errorCode.includes('session-expired') || errorCode.includes('code-expired')) {
+        Alert.alert(
+          'Code Expired',
+          'Your verification code has expired. Would you like us to send a new one?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Resend Code', onPress: handleResendCode },
+          ]
+        );
+      } else {
+        Alert.alert('Error', error.message || 'Invalid verification code.');
+      }
     } finally {
       setLoading(false);
     }
@@ -156,6 +183,13 @@ export default function AuthScreen() {
               ) : (
                 <Text style={styles.primaryButtonText}>Verify</Text>
               )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleResendCode}
+              disabled={loading}
+            >
+              <Text style={styles.secondaryButtonText}>Resend Code</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.secondaryButton}
