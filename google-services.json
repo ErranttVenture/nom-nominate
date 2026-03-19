@@ -12,7 +12,16 @@
           "package_name": "com.nomnominate.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "964967620859-acoqthpi2kaamr5otd0kn9jfjsse3neg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nomnominate.app",
+            "certificate_hash": "c9b8089c1383106c134625e23b948dcf4b6b2408"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAw3zihqkKYprp0YFSIbBOMIvsA0XY00uA"

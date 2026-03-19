@@ -18,12 +18,15 @@ import { geocodeZipCode as realGeocodeZipCode } from '@/lib/api/geocoding';
 // ===== AUTH SERVICE =====
 
 export const AuthService = {
-  signInWithPhone: async (phone: string) => {
-    return firebaseAuth.signInWithPhone(phone);
+  sendVerificationCode: (
+    phone: string,
+    onAutoVerify?: (result: { isNewUser: boolean }) => void,
+  ) => {
+    return firebaseAuth.sendVerificationCode(phone, onAutoVerify);
   },
 
-  confirmVerificationCode: async (confirmation: any, code: string) => {
-    return firebaseAuth.confirmVerificationCode(confirmation, code);
+  confirmVerificationCode: async (verificationId: string, code: string) => {
+    return firebaseAuth.confirmVerificationCode(verificationId, code);
   },
 
   updateUserProfile: async (displayName: string) => {

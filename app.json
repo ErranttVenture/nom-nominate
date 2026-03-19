@@ -22,7 +22,7 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.nomnominate.app",
-      "versionCode": 19,
+      "versionCode": 25,
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {

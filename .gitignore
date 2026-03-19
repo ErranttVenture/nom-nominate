@@ -27,3 +27,10 @@ GoogleService-Info.plist
 # OS
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+*.aab
+*.apk
+
+# Firebase local cache
+.firebase/

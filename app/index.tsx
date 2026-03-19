@@ -13,10 +13,14 @@ const TUTORIAL_SEEN_KEY = 'nom_tutorial_seen';
  */
 export default function Index() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, isVerifying } = useAuthStore();
 
   useEffect(() => {
     if (isLoading) return;
+    // Don't navigate while phone verification is in progress —
+    // Android auto-verify can sign in the user mid-flow, which
+    // would cause a premature redirect away from auth.tsx.
+    if (isVerifying) return;
 
     const checkTutorial = async () => {
       try {
@@ -38,7 +42,7 @@ export default function Index() {
     };
 
     checkTutorial();
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, isVerifying]);
 
   return (
     <View style={styles.container}>

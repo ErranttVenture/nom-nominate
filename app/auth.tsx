@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,72 +13,195 @@ import {
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants';
 import { AuthService } from '@/lib/services';
+import { useAuthStore } from '@/stores/authStore';
 
 type AuthStep = 'phone' | 'verify' | 'name';
 
+/** Strip everything except digits from a phone number string. */
+function sanitizePhone(raw: string): string {
+  return raw.replace(/[^0-9]/g, '');
+}
+
+const RESEND_COOLDOWN_SECONDS = 30;
+
 export default function AuthScreen() {
   const router = useRouter();
+  const setVerifying = useAuthStore((s) => s.setVerifying);
+
   const [step, setStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
+  // Refs to avoid stale closures
+  const verificationIdRef = useRef<string | null>(null);
   const codeInputRef = useRef<TextInput>(null);
+  // Guard against double sign-in (auto-verify + manual verify racing)
+  const signedInRef = useRef(false);
 
-  const handleSendCode = async () => {
-    if (phone.length < 10) {
-      Alert.alert('Invalid Phone', 'Please enter a valid phone number.');
-      return;
-    }
+  // Tell the auth store we're verifying so index.tsx won't navigate away
+  useEffect(() => {
+    setVerifying(true);
+    return () => {
+      setVerifying(false);
+    };
+  }, [setVerifying]);
 
-    setLoading(true);
-    try {
-      const formattedPhone = phone.startsWith('+') ? phone : `+1${phone}`;
-      const result = await AuthService.signInWithPhone(formattedPhone);
-      setConfirmationResult(result);
-      setStep('verify');
-      setTimeout(() => codeInputRef.current?.focus(), 300);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send verification code.');
-    } finally {
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const getFormattedPhone = useCallback(() => {
+    const digits = sanitizePhone(phone);
+    return digits.startsWith('1') && digits.length === 11
+      ? `+${digits}`
+      : `+1${digits}`;
+  }, [phone]);
+
+  /**
+   * Called when Android auto-verifies the SMS code in the background,
+   * AFTER we've already moved to the code entry screen.
+   */
+  const handleAutoVerify = useCallback(
+    (result: { isNewUser: boolean }) => {
+      console.log('[Auth] Auto-verify callback fired, isNewUser:', result.isNewUser);
+      if (signedInRef.current) return; // already handled
+      signedInRef.current = true;
       setLoading(false);
-    }
-  };
 
-  const handleResendCode = async () => {
-    setLoading(true);
-    setCode('');
-    try {
-      const formattedPhone = phone.startsWith('+') ? phone : `+1${phone}`;
-      const result = await AuthService.signInWithPhone(formattedPhone);
-      setConfirmationResult(result);
-      Alert.alert('Code Sent', 'A new verification code has been sent.');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend verification code.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (result.isNewUser) {
+        setStep('name');
+      } else {
+        setVerifying(false);
+        router.replace('/(tabs)');
+      }
+    },
+    [router, setVerifying]
+  );
 
-  const handleVerifyCode = async () => {
+  const handleSendCode = useCallback(
+    async (isResend = false) => {
+      const digits = sanitizePhone(phone);
+      if (!isResend && digits.length < 10) {
+        Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+        return;
+      }
+
+      setLoading(true);
+      if (isResend) {
+        setCode('');
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      }
+      signedInRef.current = false;
+
+      try {
+        const formattedPhone = getFormattedPhone();
+        console.log('[Auth] Sending code to:', formattedPhone, isResend ? '(resend)' : '(initial)');
+
+        const result = await AuthService.sendVerificationCode(
+          formattedPhone,
+          handleAutoVerify, // callback for late auto-verification
+        );
+
+        console.log(
+          '[Auth] Result — autoVerified:',
+          result.autoVerified,
+          'verificationId:',
+          result.verificationId?.substring(0, 15)
+        );
+
+        // Always store the latest verificationId
+        verificationIdRef.current = result.verificationId;
+
+        // Handle immediate auto-verification (AUTO_VERIFIED before CODE_SENT)
+        if (result.autoVerified) {
+          if (signedInRef.current) return; // already handled by callback
+          signedInRef.current = true;
+          console.log('[Auth] Immediate auto-verify! isNewUser:', result.isNewUser);
+          if (result.isNewUser) {
+            setStep('name');
+          } else {
+            setVerifying(false);
+            router.replace('/(tabs)');
+          }
+          return;
+        }
+
+        if (!isResend) {
+          setStep('verify');
+          setTimeout(() => codeInputRef.current?.focus(), 300);
+        } else {
+          Alert.alert('Code Sent', 'A new verification code has been sent.');
+        }
+      } catch (error: any) {
+        console.error('[Auth] Send code error:', error);
+        Alert.alert('Error', error.message || 'Failed to send verification code.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [phone, getFormattedPhone, router, setVerifying, handleAutoVerify]
+  );
+
+  const handleResendCode = useCallback(() => {
+    if (resendCooldown > 0) return;
+    handleSendCode(true);
+  }, [handleSendCode, resendCooldown]);
+
+  const handleVerifyCode = useCallback(async () => {
     if (code.length !== 6) {
       Alert.alert('Invalid Code', 'Please enter the 6-digit verification code.');
       return;
     }
+    if (signedInRef.current) {
+      // Auto-verification already signed in — just navigate
+      console.log('[Auth] Already signed in via auto-verify, navigating');
+      setVerifying(false);
+      router.replace('/(tabs)');
+      return;
+    }
 
     setLoading(true);
     try {
-      const { isNewUser } = await AuthService.confirmVerificationCode(confirmationResult, code);
+      const vid = verificationIdRef.current;
+      console.log('[Auth] Verifying code with verificationId:', vid?.substring(0, 15));
+
+      if (!vid) {
+        Alert.alert(
+          'Session Lost',
+          'Your verification session was lost. Please request a new code.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Resend Code', onPress: handleResendCode },
+          ]
+        );
+        return;
+      }
+
+      const { isNewUser } = await AuthService.confirmVerificationCode(vid, code);
+      signedInRef.current = true;
+      console.log('[Auth] Verification successful! isNewUser:', isNewUser);
+
       if (isNewUser) {
         setStep('name');
       } else {
+        setVerifying(false);
         router.replace('/(tabs)');
       }
     } catch (error: any) {
+      console.error('[Auth] Verify error:', error.code, error.message);
       const errorCode = error.code || error.message || '';
-      if (errorCode.includes('session-expired') || errorCode.includes('code-expired')) {
+
+      if (
+        errorCode.includes('session-expired') ||
+        errorCode.includes('code-expired') ||
+        errorCode.includes('invalid-verification-id')
+      ) {
         Alert.alert(
           'Code Expired',
           'Your verification code has expired. Would you like us to send a new one?',
@@ -87,15 +210,20 @@ export default function AuthScreen() {
             { text: 'Resend Code', onPress: handleResendCode },
           ]
         );
+      } else if (errorCode.includes('invalid-verification-code')) {
+        Alert.alert(
+          'Wrong Code',
+          'The code you entered is incorrect. Please check and try again.'
+        );
       } else {
         Alert.alert('Error', error.message || 'Invalid verification code.');
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [code, router, handleResendCode, setVerifying]);
 
-  const handleSetName = async () => {
+  const handleSetName = useCallback(async () => {
     if (displayName.trim().length < 2) {
       Alert.alert('Invalid Name', 'Please enter your name.');
       return;
@@ -104,13 +232,14 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       await AuthService.updateUserProfile(displayName.trim());
+      setVerifying(false);
       router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to save name.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [displayName, router, setVerifying]);
 
   return (
     <KeyboardAvoidingView
@@ -133,7 +262,7 @@ export default function AuthScreen() {
               </View>
               <TextInput
                 style={[styles.input, styles.phoneInput]}
-                placeholder="(555) 123-4567"
+                placeholder="5551234567"
                 placeholderTextColor={COLORS.textLight}
                 keyboardType="phone-pad"
                 value={phone}
@@ -144,7 +273,7 @@ export default function AuthScreen() {
             </View>
             <TouchableOpacity
               style={[styles.primaryButton, loading && styles.buttonDisabled]}
-              onPress={handleSendCode}
+              onPress={() => handleSendCode(false)}
               disabled={loading}
             >
               {loading ? (
@@ -160,7 +289,9 @@ export default function AuthScreen() {
         {step === 'verify' && (
           <View style={styles.formContainer}>
             <Text style={styles.label}>VERIFICATION CODE</Text>
-            <Text style={styles.hint}>We sent a 6-digit code to {phone}</Text>
+            <Text style={styles.hint}>
+              We sent a 6-digit code to +1{sanitizePhone(phone)}
+            </Text>
             <TextInput
               ref={codeInputRef}
               style={styles.input}
@@ -185,15 +316,24 @@ export default function AuthScreen() {
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.secondaryButton}
+              style={[styles.secondaryButton, resendCooldown > 0 && styles.buttonDisabled]}
               onPress={handleResendCode}
-              disabled={loading}
+              disabled={loading || resendCooldown > 0}
             >
-              <Text style={styles.secondaryButtonText}>Resend Code</Text>
+              <Text style={styles.secondaryButtonText}>
+                {resendCooldown > 0
+                  ? `Resend Code (${resendCooldown}s)`
+                  : 'Resend Code'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => { setStep('phone'); setCode(''); }}
+              onPress={() => {
+                setStep('phone');
+                setCode('');
+                verificationIdRef.current = null;
+                signedInRef.current = false;
+              }}
             >
               <Text style={styles.secondaryButtonText}>Change Phone Number</Text>
             </TouchableOpacity>
