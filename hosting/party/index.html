@@ -72,6 +72,10 @@
       box-shadow: 0 6px 24px rgba(255, 107, 53, 0.5);
     }
     .open-btn:active { transform: translateY(0); }
+    .open-btn.disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
     .store-link {
       display: block;
       margin-top: 16px;
@@ -161,41 +165,77 @@
   <script>
     // Extract party ID from URL: /party/?id=abc123 or /party/abc123
     function getPartyId() {
-      const params = new URLSearchParams(window.location.search);
+      var params = new URLSearchParams(window.location.search);
       if (params.get('id')) return params.get('id');
 
-      // Also check path: /party/abc123
-      const pathMatch = window.location.pathname.match(/\/party\/([^/?]+)/);
+      var pathMatch = window.location.pathname.match(/\/party\/([^/?]+)/);
       if (pathMatch) return pathMatch[1];
 
       return null;
     }
 
-    const partyId = getPartyId();
-    const deepLink = partyId
-      ? `nomnominate://party/${partyId}`
+    var partyId = getPartyId();
+    var webLink = partyId
+      ? 'https://nom-nominate.web.app/party/' + partyId
+      : 'https://nom-nominate.web.app';
+    var deepLink = partyId
+      ? 'nomnominate://party/' + partyId
       : 'nomnominate://';
-    const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.nomnominate.app';
+    var playStoreUrl = 'https://play.google.com/store/apps/details?id=com.nomnominate.app';
+
+    var isOpening = false;
 
     function openApp() {
-      const status = document.getElementById('status');
+      if (isOpening) return;
+      isOpening = true;
+
+      var status = document.getElementById('status');
+      var btn = document.getElementById('openBtn');
       status.innerHTML = '<span class="spinner"></span> Opening Nom Nominate...';
+      btn.classList.add('disabled');
 
-      // Try the deep link
-      const start = Date.now();
-      window.location.href = deepLink;
+      // Try the Android App Link first (https:// URL that Android
+      // should intercept if assetlinks.json verification passed).
+      // Fall back to custom scheme for older Android or unverified state.
+      var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      var isAndroid = /Android/i.test(navigator.userAgent);
 
-      // If the app didn't open after 2.5 seconds, redirect to Play Store
+      if (isAndroid) {
+        // Use intent:// scheme which is more reliable than custom schemes
+        // on Android — it provides a fallback URL in the intent itself.
+        var intentUrl = 'intent://party/' + (partyId || '') +
+          '#Intent;scheme=nomnominate;package=com.nomnominate.app;' +
+          'S.browser_fallback_url=' + encodeURIComponent(playStoreUrl) + ';end';
+        window.location.href = intentUrl;
+      } else {
+        // iOS or other — use custom scheme
+        window.location.href = deepLink;
+      }
+
+      // Reset the button after a few seconds so the user can try again
       setTimeout(function() {
-        if (Date.now() - start < 4000) {
-          status.textContent = 'App not found. Redirecting to Play Store...';
-          window.location.href = playStoreUrl;
-        }
-      }, 2500);
+        isOpening = false;
+        btn.classList.remove('disabled');
+        btn.textContent = 'Try Again — Open in App';
+        status.textContent = 'Didn\'t open? Tap the button above to try again.';
+      }, 3000);
     }
 
-    // Auto-attempt deep link on mobile devices after brief delay
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // When user returns to this tab (e.g. after the app opened and they
+    // switched back), reset the UI so they can try again if needed.
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        isOpening = false;
+        var btn = document.getElementById('openBtn');
+        var status = document.getElementById('status');
+        btn.classList.remove('disabled');
+        btn.textContent = 'Open in App';
+        status.textContent = '';
+      }
+    });
+
+    // Auto-attempt to open the app on mobile after a brief delay
+    var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile && partyId) {
       setTimeout(openApp, 800);
     }

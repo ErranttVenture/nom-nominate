@@ -9,9 +9,13 @@ interface AuthState {
    *  Set during phone verification to prevent race conditions with
    *  Android auto-verification. */
   isVerifying: boolean;
+  /** Party ID from a deep link that arrived before the user was
+   *  authenticated. After auth completes, the app navigates here. */
+  pendingPartyId: string | null;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setVerifying: (verifying: boolean) => void;
+  setPendingPartyId: (id: string | null) => void;
   signOut: () => void;
 }
 
@@ -20,6 +24,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   isAuthenticated: false,
   isVerifying: false,
+  pendingPartyId: null,
 
   setUser: (user) =>
     set({ user, isAuthenticated: !!user, isLoading: false }),
@@ -29,6 +34,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setVerifying: (isVerifying) =>
     set({ isVerifying }),
+
+  setPendingPartyId: (pendingPartyId) =>
+    set({ pendingPartyId }),
 
   signOut: () =>
     set({ user: null, isAuthenticated: false }),

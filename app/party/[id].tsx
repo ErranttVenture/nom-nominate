@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,8 +23,56 @@ export default function PartyLobbyScreen() {
   const { id: partyId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { party, members, loading, error } = usePartyLobby(partyId!);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const setPendingPartyId = useAuthStore((s) => s.setPendingPartyId);
+
+  const [joining, setJoining] = useState(false);
   const [starting, setStarting] = useState(false);
+  const joinAttempted = useRef(false);
+
+  // ── Auth guard ──────────────────────────────────────────────
+  // If the user arrived via deep link but isn't logged in yet,
+  // stash the party ID and redirect to auth.  After sign-in,
+  // index.tsx will pick up pendingPartyId and navigate back here.
+  useEffect(() => {
+    if (isLoading) return; // wait for auth to resolve
+    if (!isAuthenticated) {
+      console.log('[PartyLobby] Not authenticated, stashing partyId and redirecting to auth');
+      setPendingPartyId(partyId!);
+      router.replace('/auth');
+    }
+  }, [isAuthenticated, isLoading]);
+
+  // ── Join-on-mount ───────────────────────────────────────────
+  // When the user lands on this screen (e.g. from a deep link),
+  // automatically join the party if they aren't already a member.
+  // joinParty() is idempotent so calling it twice is safe.
+  useEffect(() => {
+    if (!isAuthenticated || !partyId || joinAttempted.current) return;
+    joinAttempted.current = true;
+
+    (async () => {
+      setJoining(true);
+      try {
+        console.log('[PartyLobby] Auto-joining party:', partyId);
+        await PartyService.joinParty(partyId);
+        console.log('[PartyLobby] Join successful');
+      } catch (err: any) {
+        console.error('[PartyLobby] Join failed:', err);
+        Alert.alert(
+          'Could not join party',
+          err.message || 'The party may no longer exist. Please ask the host for a new link.',
+          [{ text: 'OK', onPress: () => router.replace('/') }]
+        );
+      } finally {
+        setJoining(false);
+      }
+    })();
+  }, [isAuthenticated, partyId]);
+
+  // ── Real-time lobby data ────────────────────────────────────
+  const { party, members, loading, error } = usePartyLobby(partyId!);
 
   // Show error and navigate back if party can't be loaded
   useEffect(() => {
@@ -75,10 +123,14 @@ export default function PartyLobbyScreen() {
     }
   }, [party?.status]);
 
-  if (loading) {
+  // ── Loading states ──────────────────────────────────────────
+  if (joining || loading || isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        {joining && (
+          <Text style={styles.loadingText}>Joining party...</Text>
+        )}
       </View>
     );
   }
@@ -205,7 +257,8 @@ function formatTimeAgo(date: Date): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+  loadingText: { marginTop: 12, fontSize: 15, color: COLORS.textLight },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

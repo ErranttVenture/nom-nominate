@@ -27,6 +27,20 @@ const RESEND_COOLDOWN_SECONDS = 30;
 export default function AuthScreen() {
   const router = useRouter();
   const setVerifying = useAuthStore((s) => s.setVerifying);
+  const pendingPartyId = useAuthStore((s) => s.pendingPartyId);
+  const setPendingPartyId = useAuthStore((s) => s.setPendingPartyId);
+
+  /** Navigate after successful auth — go to pending party if one exists, otherwise home. */
+  const navigateAfterAuth = useCallback(() => {
+    setVerifying(false);
+    if (pendingPartyId) {
+      const pid = pendingPartyId;
+      setPendingPartyId(null);
+      router.replace(`/party/${pid}`);
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [pendingPartyId, setPendingPartyId, setVerifying, router]);
 
   const [step, setStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState('');
@@ -77,11 +91,10 @@ export default function AuthScreen() {
       if (result.isNewUser) {
         setStep('name');
       } else {
-        setVerifying(false);
-        router.replace('/(tabs)');
+        navigateAfterAuth();
       }
     },
-    [router, setVerifying]
+    [navigateAfterAuth]
   );
 
   const handleSendCode = useCallback(
@@ -126,8 +139,7 @@ export default function AuthScreen() {
           if (result.isNewUser) {
             setStep('name');
           } else {
-            setVerifying(false);
-            router.replace('/(tabs)');
+            navigateAfterAuth();
           }
           return;
         }
@@ -161,8 +173,7 @@ export default function AuthScreen() {
     if (signedInRef.current) {
       // Auto-verification already signed in — just navigate
       console.log('[Auth] Already signed in via auto-verify, navigating');
-      setVerifying(false);
-      router.replace('/(tabs)');
+      navigateAfterAuth();
       return;
     }
 
@@ -190,8 +201,7 @@ export default function AuthScreen() {
       if (isNewUser) {
         setStep('name');
       } else {
-        setVerifying(false);
-        router.replace('/(tabs)');
+        navigateAfterAuth();
       }
     } catch (error: any) {
       console.error('[Auth] Verify error:', error.code, error.message);
@@ -232,8 +242,7 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       await AuthService.updateUserProfile(displayName.trim());
-      setVerifying(false);
-      router.replace('/(tabs)');
+      navigateAfterAuth();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to save name.');
     } finally {
