@@ -39,15 +39,16 @@ export interface Venue {
   cuisine: string;
   rating: number;
   priceLevel: number; // 1-4
-  photoUrl?: string;
+  photoUrl?: string | null;
   lat: number;
   lng: number;
   distanceMiles: number;
   address: string;
-  openingHours?: DayHours[];
-  isOpenOnDate?: boolean;
+  openingHours?: DayHours[] | null;
+  isOpenOnDate?: boolean | null;
   hasOffer: boolean;
-  offer?: SponsoredOffer;
+  offer?: SponsoredOffer | null;
+  priorityScore?: number;
 }
 
 export interface DayHours {

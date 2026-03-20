@@ -108,6 +108,10 @@ export const SwipeService = {
   getVoteResults: async (partyId: string): Promise<VenueVotes[]> => {
     return firebaseSwipes.getVoteResults(partyId);
   },
+
+  markDoneAndCheckNomination: async (partyId: string) => {
+    return firebaseSwipes.markDoneAndCheckNomination(partyId);
+  },
 };
 
 // ===== GEOCODING SERVICE =====

@@ -68,13 +68,13 @@ export async function searchVenues({
       priceLevel: parsePriceLevel(place.priceLevel),
       photoUrl: place.photos?.[0]
         ? getPhotoUrl(place.photos[0].name)
-        : undefined,
+        : null,
       lat: place.location?.latitude ?? 0,
       lng: place.location?.longitude ?? 0,
       distanceMiles: calculateDistance(lat, lng, place.location?.latitude, place.location?.longitude),
       address: place.formattedAddress ?? '',
-      isOpenOnDate: date ? checkOpenOnDate(place.regularOpeningHours, date) : undefined,
-      hasOffer: false, // populated separately from Firestore
+      isOpenOnDate: date ? checkOpenOnDate(place.regularOpeningHours, date) : null,
+      hasOffer: false,
     };
     return venue;
   });

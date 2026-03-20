@@ -120,9 +120,22 @@ export default function SwipeScreen() {
     }
   }, [party, partyId, setVenues]);
 
+  // When user finishes all cards, mark them as done and check for nomination.
+  // Guard on !loading so we don't fire before venues have been loaded.
+  const [markedDone, setMarkedDone] = useState(false);
+  useEffect(() => {
+    if (!loading && venues.length > 0 && currentVenueIndex >= venues.length && !markedDone) {
+      setMarkedDone(true);
+      SwipeService.markDoneAndCheckNomination(partyId!).catch((err) =>
+        console.error('[Swipe] Failed to mark done:', err)
+      );
+    }
+  }, [loading, currentVenueIndex, venues.length, markedDone, partyId]);
+
   const currentVenue = venues[currentVenueIndex];
   const nextVenue = venues[currentVenueIndex + 1];
   const hasMoreCards = currentVenueIndex < venues.length;
+  const noVenuesFound = !loading && venues.length === 0;
 
   if (loading) {
     return (
@@ -130,6 +143,41 @@ export default function SwipeScreen() {
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading venues...</Text>
       </View>
+    );
+  }
+
+  // No restaurants found for this area
+  if (noVenuesFound) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.noMoreCards}>
+          <Text style={styles.noMoreEmoji}>😕</Text>
+          <Text style={styles.noMoreTitle}>No Restaurants Found</Text>
+          <Text style={styles.noMoreSubtitle}>
+            We couldn't find any restaurants in this area.{'\n'}
+            Try expanding the search radius.
+          </Text>
+          <TouchableOpacity
+            style={styles.expandBtn}
+            onPress={handleIncreaseRadius}
+            disabled={expandingRadius}
+            activeOpacity={0.7}
+          >
+            {expandingRadius ? (
+              <ActivityIndicator color={COLORS.primary} size="small" />
+            ) : (
+              <Text style={styles.expandBtnText}>Search Wider Area 🗺️</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.expandBtn, { marginTop: 12 }]}
+            onPress={() => router.replace('/')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.expandBtnText}>Go Home</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -161,8 +209,15 @@ export default function SwipeScreen() {
             <Text style={styles.noMoreEmoji}>🎉</Text>
             <Text style={styles.noMoreTitle}>You've seen them all!</Text>
             <Text style={styles.noMoreSubtitle}>
-              You've swiped through all {venues.length} venues in this area.
+              You've swiped through all {venues.length} venues.{'\n'}
+              Waiting for other members to finish...
             </Text>
+
+            <ActivityIndicator
+              size="small"
+              color={COLORS.primary}
+              style={{ marginBottom: 24 }}
+            />
 
             {/* Review Results Button */}
             <TouchableOpacity
@@ -172,7 +227,7 @@ export default function SwipeScreen() {
               }
               activeOpacity={0.7}
             >
-              <Text style={styles.reviewBtnText}>Review Results 📊</Text>
+              <Text style={styles.reviewBtnText}>Preview Results 📊</Text>
             </TouchableOpacity>
 
             {/* Increase Radius Button */}

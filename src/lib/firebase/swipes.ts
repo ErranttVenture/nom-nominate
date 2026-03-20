@@ -11,7 +11,8 @@ interface RecordSwipeInput {
 
 /**
  * Record a swipe in Firestore.
- * Also increments the member's swipe count.
+ * Also increments the member's swipe count, boosts venue priority
+ * on right-swipes, and checks if all members are done.
  */
 export async function recordSwipe(input: RecordSwipeInput): Promise<void> {
   const user = auth().currentUser;
@@ -41,7 +42,72 @@ export async function recordSwipe(input: RecordSwipeInput): Promise<void> {
     status: 'swiping',
   });
 
+  // Boost venue priority on right-swipe so other members see it sooner
+  if (direction === 'right') {
+    const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venueId);
+    batch.update(venueRef, {
+      priorityScore: firestore.FieldValue.increment(1),
+    });
+  }
+
   await batch.commit();
+}
+
+/**
+ * Mark the current user as done swiping, then check if all members
+ * are finished. If everyone is done, auto-nominate the top venue.
+ */
+export async function markDoneAndCheckNomination(partyId: string): Promise<void> {
+  const user = auth().currentUser;
+  if (!user) return;
+
+  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
+
+  // Mark this member as done
+  await partyRef
+    .collection(COLLECTIONS.PARTY_MEMBERS)
+    .doc(user.uid)
+    .update({ status: 'done' });
+
+  // Check if ALL members are now done
+  const membersSnapshot = await partyRef
+    .collection(COLLECTIONS.PARTY_MEMBERS)
+    .get();
+
+  const allDone = membersSnapshot.docs.every((doc) => {
+    const status = doc.data().status;
+    return status === 'done';
+  });
+
+  if (allDone) {
+    console.log('[Swipes] All members done — auto-nominating winner');
+    await nominateWinner(partyId);
+  }
+}
+
+/**
+ * Calculate vote results and nominate the top venue.
+ * Updates party status to 'nominated'.
+ */
+async function nominateWinner(partyId: string): Promise<void> {
+  const results = await getVoteResults(partyId);
+
+  if (results.length === 0) {
+    console.warn('[Swipes] No right-swipes recorded, cannot nominate');
+    return;
+  }
+
+  const winner = results[0];
+  console.log('[Swipes] Winner:', winner.venueName, `(${winner.percentage}%)`);
+
+  await firestore()
+    .collection(COLLECTIONS.PARTIES)
+    .doc(partyId)
+    .update({
+      status: 'nominated',
+      nominatedVenueId: winner.venueId,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
 }
 
 /**

@@ -6,6 +6,13 @@ import { geocodeZipCode } from '@/lib/api/geocoding';
 import { MILES_TO_METERS } from '@/constants';
 import type { Party, PartyMember, Venue } from '@/types';
 
+/** Strip keys with undefined values — Firestore rejects undefined. */
+function stripUndefined(obj: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v !== undefined)
+  );
+}
+
 interface CreatePartyInput {
   name: string;
   zipCode: string;
@@ -110,14 +117,17 @@ export async function startSwipingSession(partyId: string): Promise<void> {
     date: party.date,
   });
 
+  if (venues.length === 0) {
+    throw new Error(
+      'No restaurants found in this area. Try a different zip code or a larger search radius.'
+    );
+  }
+
   // Cache venues in Firestore subcollection
   const batch = firestore().batch();
   venues.forEach((venue) => {
     const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
-    batch.set(venueRef, {
-      ...venue,
-      priorityScore: 0,
-    });
+    batch.set(venueRef, stripUndefined({ ...venue, priorityScore: 0 }));
   });
 
   // Update party status
@@ -272,7 +282,7 @@ export async function updatePartyRadius(
   oldVenues.docs.forEach((doc) => batch.delete(doc.ref));
   venues.forEach((venue) => {
     const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
-    batch.set(venueRef, { ...venue, priorityScore: 0 });
+    batch.set(venueRef, stripUndefined({ ...venue, priorityScore: 0 }));
   });
   await batch.commit();
 

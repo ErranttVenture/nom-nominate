@@ -20,13 +20,20 @@ export function useSwipeSession(partyId: string) {
 
     let isMounted = true;
 
+    // Reset swipe state immediately so stale values from a
+    // previous party don't cause "You've seen them all!" flash.
+    usePartyStore.setState({ currentVenueIndex: 0, swipeCount: 0 });
+
     const initSession = async () => {
       try {
         const allVenues = await PartyService.getPartyVenues(partyId);
         const swipedIds = await SwipeService.getUserSwipedVenueIds(partyId);
         const unswiped = allVenues.filter((v) => !swipedIds.has(v.id));
 
+        console.log('[SwipeSession] Loaded', allVenues.length, 'venues,', unswiped.length, 'unswiped');
+
         if (isMounted) {
+          // setVenues also resets currentVenueIndex and swipeCount
           setVenues(unswiped);
           setLoading(false);
         }
