@@ -167,7 +167,7 @@ export default function PartyLobbyScreen() {
           <Text style={styles.memberStatus}>
             {item.status === 'invited' || item.status === 'declined'
               ? 'Invited'
-              : `Joined ${formatTimeAgo(item.joinedAt)}`}
+              : 'Joined'}
           </Text>
         </View>
         <View style={[styles.memberBadge, badge.style]}>
@@ -243,17 +243,6 @@ export default function PartyLobbyScreen() {
   );
 }
 
-function formatTimeAgo(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - new Date(date).getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.floor(diffHr / 24)}d ago`;
-}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },

@@ -22,7 +22,7 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.nomnominate.app",
-      "versionCode": 29,
+      "versionCode": 32,
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
@@ -47,7 +47,8 @@
       "expo-asset",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "@react-native-firebase/messaging"
+      "@react-native-firebase/messaging",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "router": {},

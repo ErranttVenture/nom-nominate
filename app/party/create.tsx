@@ -8,9 +8,13 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import { COLORS, PARTY } from '@/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { PartyService } from '@/lib/services';
@@ -22,8 +26,37 @@ export default function CreatePartyScreen() {
   const [name, setName] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [radius, setRadius] = useState<5 | 10 | 15 | 25>(PARTY.DEFAULT_RADIUS_MILES as 10);
-  const [dateText, setDateText] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
+    // On Android the picker closes automatically on selection or cancel
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
+  const clearDate = () => {
+    setSelectedDate(null);
+  };
+
+  /** Format Date as ISO string for Firestore/API: "2026-03-21" */
+  const getDateISOString = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  /** Format Date for display: "Sat, Mar 21" */
+  const formatDateDisplay = (date: Date): string => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -42,7 +75,7 @@ export default function CreatePartyScreen() {
         name: name.trim(),
         zipCode,
         radiusMiles: radius,
-        date: dateText.trim() || undefined,
+        date: selectedDate ? getDateISOString(selectedDate) : undefined,
         creatorId: user.id,
       });
       router.replace(`/party/${partyId}`);
@@ -92,17 +125,51 @@ export default function CreatePartyScreen() {
           />
         </View>
 
-        {/* Date (optional) */}
+        {/* Date (optional) — native date picker */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>DATE (OPTIONAL)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Sat, Mar 14"
-            placeholderTextColor="#b2bec3"
-            value={dateText}
-            onChangeText={setDateText}
-            maxLength={20}
-          />
+          {selectedDate ? (
+            <View style={styles.dateRow}>
+              <TouchableOpacity
+                style={[styles.input, styles.dateDisplay]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateText}>
+                  📅 {formatDateDisplay(selectedDate)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dateClearBtn} onPress={clearDate}>
+                <Text style={styles.dateClearText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.input, styles.dateButton]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.datePlaceholder}>📅 Add Date (Optional)</Text>
+            </TouchableOpacity>
+          )}
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate || new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              minimumDate={new Date()}
+              onChange={handleDateChange}
+            />
+          )}
+
+          {/* iOS: show a Done button to dismiss the inline picker */}
+          {Platform.OS === 'ios' && showDatePicker && (
+            <TouchableOpacity
+              style={styles.datePickerDone}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <Text style={styles.datePickerDoneText}>Done</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search Radius */}
@@ -183,6 +250,50 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     borderWidth: 2,
     borderColor: COLORS.border,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateDisplay: {
+    flex: 1,
+  },
+  dateText: {
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+  dateButton: {},
+  datePlaceholder: {
+    fontSize: 16,
+    color: '#b2bec3',
+  },
+  dateClearBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateClearText: {
+    fontSize: 16,
+    color: COLORS.textLight,
+    fontWeight: '700',
+  },
+  datePickerDone: {
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  datePickerDoneText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   radiusOptions: { flexDirection: 'row', gap: 8 },
   radiusOption: {
