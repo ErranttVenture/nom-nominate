@@ -3,10 +3,12 @@ import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
 import { useAuthListener } from '@/hooks/useAuth';
+import { useInAppUpdate } from '@/hooks/useInAppUpdate';
 import { COLORS } from '@/constants';
 
 export default function RootLayout() {
   useAuthListener();
+  useInAppUpdate();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

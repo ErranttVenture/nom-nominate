@@ -1,6 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import { COLLECTIONS } from './config';
+import { PARTY } from '@/constants';
 import type { VenueVotes } from '@/types';
 
 interface RecordSwipeInput {
@@ -11,10 +12,14 @@ interface RecordSwipeInput {
 
 /**
  * Record a swipe in Firestore.
- * Also increments the member's swipe count, boosts venue priority
- * on right-swipes, and checks if all members are done.
+ * Also increments the member's swipe count and boosts venue priority
+ * on right-swipes. After a right-swipe, checks for unanimous nomination.
+ *
+ * Returns { nominated: true, venueId } if the swipe triggered a win.
  */
-export async function recordSwipe(input: RecordSwipeInput): Promise<void> {
+export async function recordSwipe(
+  input: RecordSwipeInput
+): Promise<{ nominated: boolean; venueId?: string }> {
   const user = auth().currentUser;
   if (!user) throw new Error('Not authenticated.');
 
@@ -51,63 +56,134 @@ export async function recordSwipe(input: RecordSwipeInput): Promise<void> {
   }
 
   await batch.commit();
+
+  // After a right-swipe, check if this venue now has unanimous approval
+  if (direction === 'right') {
+    const isUnanimous = await checkUnanimousNomination(partyId, venueId);
+    if (isUnanimous) {
+      return { nominated: true, venueId };
+    }
+  }
+
+  return { nominated: false };
 }
 
 /**
- * Mark the current user as done swiping, then check if all members
- * are finished. If everyone is done, auto-nominate the top venue.
+ * Check if ALL party members have right-swiped a specific venue.
+ * If so, nominate it immediately (unanimous win).
  */
-export async function markDoneAndCheckNomination(partyId: string): Promise<void> {
-  const user = auth().currentUser;
-  if (!user) return;
-
+async function checkUnanimousNomination(
+  partyId: string,
+  venueId: string
+): Promise<boolean> {
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
 
-  // Mark this member as done
-  await partyRef
-    .collection(COLLECTIONS.PARTY_MEMBERS)
-    .doc(user.uid)
-    .update({ status: 'done' });
+  // Check current party status — don't nominate if already nominated
+  const partyDoc = await partyRef.get();
+  const party = partyDoc.data();
+  if (!party || party.status === 'nominated' || party.status === 'results') {
+    return false;
+  }
 
-  // Check if ALL members are now done
+  const expected = party.expectedMembers ?? party.memberIds.length;
+
+  // 6+ mode (expectedMembers === 0): skip unanimous check entirely
+  // Nomination can only happen via fallback voting in this mode
+  if (expected === 0) {
+    return false;
+  }
+
+  // Get all right-swipes for this venue
+  const swipesSnapshot = await partyRef
+    .collection(COLLECTIONS.SWIPES)
+    .where('venueId', '==', venueId)
+    .where('direction', '==', 'right')
+    .get();
+
+  // Collect unique voters
+  const voters = new Set(swipesSnapshot.docs.map((doc) => doc.data().userId));
+
+  if (voters.size >= expected) {
+    // UNANIMOUS! Nominate this venue
+    console.log(`[Swipes] UNANIMOUS nomination! Venue ${venueId} — ${voters.size}/${expected} members agreed`);
+
+    // Get venue name for logging
+    const venueDoc = await partyRef.collection(COLLECTIONS.VENUES).doc(venueId).get();
+    const venueName = venueDoc.data()?.name ?? 'Unknown';
+
+    await partyRef.update({
+      status: 'nominated',
+      nominatedVenueId: venueId,
+      nominatedVenueVotes: voters.size,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`[Swipes] Winner: ${venueName} (${voters.size}/${expected} unanimous)`);
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check the fallback condition: all members have swiped >= MIN_SWIPES_FOR_FALLBACK.
+ * If so, nominate the venue with the most right-swipes.
+ *
+ * Called after each swipe when a member reaches the threshold.
+ */
+export async function checkFallbackNomination(partyId: string): Promise<boolean> {
+  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
+
+  // Check current party status
+  const partyDoc = await partyRef.get();
+  const party = partyDoc.data();
+  if (!party || party.status === 'nominated' || party.status === 'results') {
+    return false;
+  }
+
+  const expected = party.expectedMembers ?? party.memberIds.length;
+
+  // Check if enough members have swiped at least MIN_SWIPES_FOR_FALLBACK times
   const membersSnapshot = await partyRef
     .collection(COLLECTIONS.PARTY_MEMBERS)
     .get();
 
-  const allDone = membersSnapshot.docs.every((doc) => {
-    const status = doc.data().status;
-    return status === 'done';
+  const membersAtThreshold = membersSnapshot.docs.filter((doc) => {
+    const member = doc.data();
+    return member.swipeCount >= PARTY.MIN_SWIPES_FOR_FALLBACK;
   });
 
-  if (allDone) {
-    console.log('[Swipes] All members done — auto-nominating winner');
-    await nominateWinner(partyId);
+  if (expected === 0) {
+    // 6+ mode: require at least 6 members at threshold AND all current members at threshold
+    const allCurrentHitThreshold = membersSnapshot.docs.every((doc) => {
+      return doc.data().swipeCount >= PARTY.MIN_SWIPES_FOR_FALLBACK;
+    });
+    if (membersAtThreshold.length < 6 || !allCurrentHitThreshold) return false;
+  } else {
+    // Exact mode (2-6): require expectedMembers worth of members at threshold
+    if (membersAtThreshold.length < expected) return false;
   }
-}
 
-/**
- * Calculate vote results and nominate the top venue.
- * Updates party status to 'nominated'.
- */
-async function nominateWinner(partyId: string): Promise<void> {
+  // All members have hit the threshold — nominate the top venue
+  console.log('[Swipes] All members hit fallback threshold — nominating top venue');
   const results = await getVoteResults(partyId);
 
   if (results.length === 0) {
-    console.warn('[Swipes] No right-swipes recorded, cannot nominate');
-    return;
+    console.warn('[Swipes] No right-swipes recorded, cannot nominate via fallback');
+    return false;
   }
 
   const winner = results[0];
-  console.log('[Swipes] Winner:', winner.venueName, `(${winner.percentage}%)`);
+  console.log(`[Swipes] Fallback winner: ${winner.venueName} (${winner.rightSwipes} votes, ${winner.percentage}%)`);
 
-  await firestore()
-    .collection(COLLECTIONS.PARTIES)
-    .doc(partyId)
-    .update({
-      status: 'nominated',
-      nominatedVenueId: winner.venueId,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
-    });
+  await partyRef.update({
+    status: 'nominated',
+    nominatedVenueId: winner.venueId,
+    nominatedVenueVotes: winner.rightSwipes,
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  return true;
 }
 
 /**
@@ -129,8 +205,25 @@ export async function getUserSwipedVenueIds(partyId: string): Promise<Set<string
 }
 
 /**
+ * Get the current user's swipe count for a party.
+ */
+export async function getUserSwipeCount(partyId: string): Promise<number> {
+  const user = auth().currentUser;
+  if (!user) return 0;
+
+  const memberDoc = await firestore()
+    .collection(COLLECTIONS.PARTIES)
+    .doc(partyId)
+    .collection(COLLECTIONS.PARTY_MEMBERS)
+    .doc(user.uid)
+    .get();
+
+  return memberDoc.data()?.swipeCount ?? 0;
+}
+
+/**
  * Calculate vote results for a Party.
- * Returns venues sorted by right-swipe percentage.
+ * Returns venues sorted by right-swipe count (descending).
  */
 export async function getVoteResults(partyId: string): Promise<VenueVotes[]> {
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
@@ -176,7 +269,7 @@ export async function getVoteResults(partyId: string): Promise<VenueVotes[]> {
       totalMembers,
       percentage: Math.round((voters.size / totalMembers) * 100),
     }))
-    .sort((a, b) => b.percentage - a.percentage || b.rightSwipes - a.rightSwipes);
+    .sort((a, b) => b.rightSwipes - a.rightSwipes || b.percentage - a.percentage);
 
   return results;
 }

@@ -11,9 +11,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '@/constants';
 import { AuthService } from '@/lib/services';
 import { useAuthStore } from '@/stores/authStore';
+
+const TUTORIAL_SEEN_KEY = 'nom_tutorial_seen';
 
 type AuthStep = 'phone' | 'verify' | 'name';
 
@@ -30,9 +33,22 @@ export default function AuthScreen() {
   const pendingPartyId = useAuthStore((s) => s.pendingPartyId);
   const setPendingPartyId = useAuthStore((s) => s.setPendingPartyId);
 
-  /** Navigate after successful auth — go to pending party if one exists, otherwise home. */
-  const navigateAfterAuth = useCallback(() => {
+  /** Navigate after successful auth — tutorial (first time), pending party, or home. */
+  const navigateAfterAuth = useCallback(async () => {
     setVerifying(false);
+
+    // Check if this is the user's first time — show tutorial if so
+    try {
+      const seen = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY);
+      if (!seen) {
+        await AsyncStorage.setItem(TUTORIAL_SEEN_KEY, 'true');
+        router.replace('/tutorial');
+        return;
+      }
+    } catch {
+      // AsyncStorage not available — skip tutorial check
+    }
+
     if (pendingPartyId) {
       const pid = pendingPartyId;
       setPendingPartyId(null);

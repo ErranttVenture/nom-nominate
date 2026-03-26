@@ -12,7 +12,7 @@ interface SearchVenuesParams {
 
 /**
  * Search for restaurants and bars near a location using Google Places API (New).
- * Returns venues formatted for the app.
+ * Nearby Search returns up to 20 results per call with no pagination.
  */
 export async function searchVenues({
   lat,
@@ -20,6 +20,17 @@ export async function searchVenues({
   radiusMeters,
   date,
 }: SearchVenuesParams): Promise<Venue[]> {
+  const body: Record<string, any> = {
+    includedTypes: ['restaurant', 'bar', 'cafe'],
+    maxResultCount: 20,
+    locationRestriction: {
+      circle: {
+        center: { latitude: lat, longitude: lng },
+        radius: radiusMeters,
+      },
+    },
+  };
+
   const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
@@ -38,16 +49,7 @@ export async function searchVenues({
         'places.regularOpeningHours',
       ].join(','),
     },
-    body: JSON.stringify({
-      includedTypes: ['restaurant', 'bar', 'cafe'],
-      maxResultCount: 20,
-      locationRestriction: {
-        circle: {
-          center: { latitude: lat, longitude: lng },
-          radius: radiusMeters,
-        },
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json();
@@ -80,11 +82,9 @@ export async function searchVenues({
   });
 
   // Filter out venues closed on the selected date
-  if (date) {
-    return venues.filter((v) => v.isOpenOnDate !== false);
-  }
+  const filtered = date ? venues.filter((v) => v.isOpenOnDate !== false) : venues;
 
-  return venues;
+  return filtered;
 }
 
 function formatType(type?: string): string {

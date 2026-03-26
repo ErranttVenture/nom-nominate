@@ -54,8 +54,14 @@ export default function SuccessScreen() {
 
       {/* Title */}
       <Animated.View style={{ opacity: fadeAnim }}>
-        <Text style={styles.title}>A nom has been{'\n'}nominated!</Text>
-        <Text style={styles.subtitle}>Everyone agreed — let's eat!</Text>
+        <Text style={styles.title}>A Nom has been{'\n'}Nominated!</Text>
+        <Text style={styles.subtitle}>
+          {party?.nominatedVenueVotes != null && party.memberIds
+            ? party.nominatedVenueVotes >= party.memberIds.length
+              ? 'Everyone agreed — let\'s eat!'
+              : `${party.nominatedVenueVotes} out of ${party.memberIds.length} members voted for this spot!`
+            : 'Let\'s eat!'}
+        </Text>
       </Animated.View>
 
       {/* Venue Card */}

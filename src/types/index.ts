@@ -19,6 +19,11 @@ export interface Party {
   memberIds: string[];
   status: PartyStatus;
   nominatedVenueId?: string;
+  nominatedVenueVotes?: number; // Number of right-swipes on winning venue
+  venuesFetched?: number; // Total venues fetched from Google so far
+  venuesExhausted?: boolean; // True when no more Google results available
+  completedShifts?: number; // Number of coordinate shifts tried (0-20)
+  expectedMembers?: number; // 2-6 for exact count, 0 for "6+" non-unanimous mode
   createdAt: Date;
   updatedAt: Date;
 }

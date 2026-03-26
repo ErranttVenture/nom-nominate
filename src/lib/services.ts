@@ -46,6 +46,7 @@ export const PartyService = {
     zipCode: string;
     radiusMiles: 5 | 10 | 15 | 25;
     date?: string;
+    expectedMembers: number;
     creatorId: string;
   }): Promise<string> => {
     return firebaseParties.createParty(input);
@@ -71,8 +72,16 @@ export const PartyService = {
     return firebaseParties.getPartyVenues(partyId);
   },
 
-  startSwipingSession: async (partyId: string) => {
-    return firebaseParties.startSwipingSession(partyId);
+  ensureSwipingStarted: async (partyId: string) => {
+    return firebaseParties.ensureSwipingStarted(partyId);
+  },
+
+  fetchMoreVenues: async (partyId: string): Promise<number> => {
+    return firebaseParties.fetchMoreVenues(partyId);
+  },
+
+  expandRadius: async (partyId: string, newRadius: 5 | 10 | 15 | 25): Promise<number> => {
+    return firebaseParties.expandRadius(partyId, newRadius);
   },
 
   onPartySnapshot: (partyId: string, callback: (party: Party) => void) => {
@@ -84,10 +93,6 @@ export const PartyService = {
   onMembersSnapshot: (partyId: string, callback: (members: PartyMember[]) => void) => {
     return firebaseParties.onMembersSnapshot(partyId, callback);
   },
-
-  updatePartyRadius: async (partyId: string, newRadius: 5 | 10 | 15 | 25): Promise<Venue[]> => {
-    return firebaseParties.updatePartyRadius(partyId, newRadius);
-  },
 };
 
 // ===== SWIPE SERVICE =====
@@ -97,7 +102,7 @@ export const SwipeService = {
     partyId: string;
     venueId: string;
     direction: 'left' | 'right';
-  }) => {
+  }): Promise<{ nominated: boolean; venueId?: string }> => {
     return firebaseSwipes.recordSwipe(input);
   },
 
@@ -105,12 +110,16 @@ export const SwipeService = {
     return firebaseSwipes.getUserSwipedVenueIds(partyId);
   },
 
+  getUserSwipeCount: async (partyId: string): Promise<number> => {
+    return firebaseSwipes.getUserSwipeCount(partyId);
+  },
+
   getVoteResults: async (partyId: string): Promise<VenueVotes[]> => {
     return firebaseSwipes.getVoteResults(partyId);
   },
 
-  markDoneAndCheckNomination: async (partyId: string) => {
-    return firebaseSwipes.markDoneAndCheckNomination(partyId);
+  checkFallbackNomination: async (partyId: string): Promise<boolean> => {
+    return firebaseSwipes.checkFallbackNomination(partyId);
   },
 };
 

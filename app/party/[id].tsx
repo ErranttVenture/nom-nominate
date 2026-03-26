@@ -48,25 +48,43 @@ export default function PartyLobbyScreen() {
   // When the user lands on this screen (e.g. from a deep link),
   // automatically join the party if they aren't already a member.
   // joinParty() is idempotent so calling it twice is safe.
+  // Retries transient Firestore errors with exponential backoff.
   useEffect(() => {
     if (!isAuthenticated || !partyId || joinAttempted.current) return;
     joinAttempted.current = true;
 
+    const TRANSIENT_CODES = ['firestore/unavailable', 'firestore/deadline-exceeded'];
+    const MAX_RETRIES = 3;
+
     (async () => {
       setJoining(true);
-      try {
-        console.log('[PartyLobby] Auto-joining party:', partyId);
-        await PartyService.joinParty(partyId);
-        console.log('[PartyLobby] Join successful');
-      } catch (err: any) {
-        console.error('[PartyLobby] Join failed:', err);
-        Alert.alert(
-          'Could not join party',
-          err.message || 'The party may no longer exist. Please ask the host for a new link.',
-          [{ text: 'OK', onPress: () => router.replace('/') }]
-        );
-      } finally {
-        setJoining(false);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          console.log(`[PartyLobby] Auto-joining party: ${partyId}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
+          await PartyService.joinParty(partyId);
+          console.log('[PartyLobby] Join successful');
+          setJoining(false);
+          return; // success — exit
+        } catch (err: any) {
+          const isTransient = TRANSIENT_CODES.some((code) => err.message?.includes(code) || err.code === code);
+
+          if (isTransient && attempt < MAX_RETRIES) {
+            const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+            console.warn(`[PartyLobby] Transient error, retrying in ${delay}ms...`, err.message);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+
+          // Non-transient or exhausted retries
+          console.error('[PartyLobby] Join failed:', err);
+          Alert.alert(
+            'Could not join party',
+            err.message || 'The party may no longer exist. Please ask the host for a new link.',
+            [{ text: 'OK', onPress: () => router.replace('/') }]
+          );
+          setJoining(false);
+          return;
+        }
       }
     })();
   }, [isAuthenticated, partyId]);
@@ -83,8 +101,6 @@ export default function PartyLobbyScreen() {
     }
   }, [error]);
 
-  const isCreator = party?.creatorId === user?.id;
-
   const handleInvite = async () => {
     const link = `https://nom-nominate.web.app/party/${partyId}`;
     try {
@@ -98,14 +114,9 @@ export default function PartyLobbyScreen() {
   };
 
   const handleStartSwiping = async () => {
-    if (members.length < 2) {
-      Alert.alert('Need More People', 'You need at least 2 members to start swiping.');
-      return;
-    }
-
     setStarting(true);
     try {
-      await PartyService.startSwipingSession(partyId!);
+      // Any member can start swiping — ensureSwipingStarted is idempotent
       router.replace({ pathname: '/party/swipe', params: { partyId } });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to start swiping.');
@@ -114,14 +125,14 @@ export default function PartyLobbyScreen() {
     }
   };
 
-  // Redirect if party is already in swiping mode
+  // Redirect only if party is nominated (swiping stays on lobby so user can invite)
   useEffect(() => {
-    if (party?.status === 'swiping') {
-      router.replace({ pathname: '/party/swipe', params: { partyId } });
-    } else if (party?.status === 'nominated') {
+    if (party?.status === 'nominated') {
       router.replace({ pathname: '/party/success', params: { partyId } });
     }
   }, [party?.status]);
+
+  const isSwiping = party?.status === 'swiping';
 
   // ── Loading states ──────────────────────────────────────────
   if (joining || loading || isLoading) {
@@ -196,6 +207,11 @@ export default function PartyLobbyScreen() {
           {party?.zipCode} · {party?.radiusMiles} mi
           {party?.date ? ` · ${new Date(party.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}` : ''}
         </Text>
+        <Text style={styles.partyMeta}>
+          {party?.expectedMembers === 0
+            ? `6+ members · ${members.length} joined`
+            : `Party of ${party?.expectedMembers ?? '?'} · ${members.length} of ${party?.expectedMembers ?? '?'} joined`}
+        </Text>
       </View>
 
       {/* Members List */}
@@ -217,27 +233,17 @@ export default function PartyLobbyScreen() {
           <Text style={styles.inviteBtnText}>Invite More Friends</Text>
         </TouchableOpacity>
 
-        {isCreator && (
-          <TouchableOpacity
-            style={[styles.startBtn, starting && styles.startBtnDisabled]}
-            onPress={handleStartSwiping}
-            disabled={starting}
-          >
-            {starting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.startBtnText}>Start Swiping 🔥</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {!isCreator && (
-          <View style={styles.waitingBanner}>
-            <Text style={styles.waitingText}>
-              Waiting for the party creator to start swiping...
-            </Text>
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.startBtn, starting && styles.startBtnDisabled]}
+          onPress={handleStartSwiping}
+          disabled={starting}
+        >
+          {starting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.startBtnText}>{isSwiping ? 'Continue Swiping 🔥' : 'Start Swiping 🔥'}</Text>
+          )}
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -307,9 +313,4 @@ const styles = StyleSheet.create({
   },
   startBtnDisabled: { opacity: 0.7 },
   startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  waitingBanner: {
-    backgroundColor: 'rgba(255,107,53,0.08)', borderRadius: 14,
-    padding: 16, alignItems: 'center',
-  },
-  waitingText: { fontSize: 14, color: COLORS.textLight, textAlign: 'center' },
 });

@@ -1,15 +1,13 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter, useRootNavigationState } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/stores/authStore';
 import { COLORS } from '@/constants';
 
-const TUTORIAL_SEEN_KEY = 'nom_tutorial_seen';
-
 /**
  * Root index — splash/loading screen.
- * Redirects to tutorial (first time), auth, or home based on state.
+ * Redirects to auth (if not logged in), tutorial (first time after auth),
+ * or home based on state.
  *
  * IMPORTANT: Expo Router may have already navigated to a deep link
  * target (e.g. /party/[id]) before this effect runs.  We check
@@ -32,31 +30,22 @@ export default function Index() {
     if (!rootNavState?.key) return;
 
     const navigate = async () => {
-      // First-time tutorial check
-      try {
-        const seen = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY);
-        if (!seen) {
-          await AsyncStorage.setItem(TUTORIAL_SEEN_KEY, 'true');
-          router.replace('/tutorial');
-          return;
-        }
-      } catch {
-        // AsyncStorage not available — skip tutorial check
+      // Auth check FIRST — if not logged in, go to auth
+      if (!isAuthenticated) {
+        router.replace('/auth');
+        return;
       }
 
-      if (isAuthenticated) {
-        // If there's a pending party from a deep link that arrived
-        // before the user was authenticated, navigate there now.
-        if (pendingPartyId) {
-          const pid = pendingPartyId;
-          setPendingPartyId(null);
-          router.replace(`/party/${pid}`);
-        } else {
-          router.replace('/(tabs)');
-        }
-      } else {
-        router.replace('/auth');
+      // Authenticated — check for pending deep link party
+      if (pendingPartyId) {
+        const pid = pendingPartyId;
+        setPendingPartyId(null);
+        router.replace(`/party/${pid}`);
+        return;
       }
+
+      // Authenticated, no pending party — go home
+      router.replace('/(tabs)');
     };
 
     navigate();

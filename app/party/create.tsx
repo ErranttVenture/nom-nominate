@@ -25,10 +25,20 @@ export default function CreatePartyScreen() {
 
   const [name, setName] = useState('');
   const [zipCode, setZipCode] = useState('');
+  const [expectedMembers, setExpectedMembers] = useState<number>(2);
   const [radius, setRadius] = useState<5 | 10 | 15 | 25>(PARTY.DEFAULT_RADIUS_MILES as 10);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const PARTY_SIZE_OPTIONS = [
+    { label: '2', value: 2 },
+    { label: '3', value: 3 },
+    { label: '4', value: 4 },
+    { label: '5', value: 5 },
+    { label: '6', value: 6 },
+    { label: '6+', value: 0 },
+  ];
 
   const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
     // On Android the picker closes automatically on selection or cancel
@@ -75,6 +85,7 @@ export default function CreatePartyScreen() {
         name: name.trim(),
         zipCode,
         radiusMiles: radius,
+        expectedMembers,
         date: selectedDate ? getDateISOString(selectedDate) : undefined,
         creatorId: user.id,
       });
@@ -123,6 +134,26 @@ export default function CreatePartyScreen() {
             keyboardType="number-pad"
             maxLength={5}
           />
+        </View>
+
+        {/* Party Size */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>HOW MANY PEOPLE?</Text>
+          <View style={styles.radiusOptions}>
+            {PARTY_SIZE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.label}
+                style={[styles.radiusOption, expectedMembers === opt.value && styles.radiusSelected]}
+                onPress={() => setExpectedMembers(opt.value)}
+              >
+                <Text
+                  style={[styles.radiusText, expectedMembers === opt.value && styles.radiusTextSelected]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Date (optional) — native date picker */}

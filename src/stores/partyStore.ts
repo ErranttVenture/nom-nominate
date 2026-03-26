@@ -44,7 +44,7 @@ export const usePartyStore = create<PartyState>((set) => ({
 
   setCurrentParty: (currentParty) => set({ currentParty }),
   setMembers: (members) => set({ members }),
-  setVenues: (venues) => set({ venues, currentVenueIndex: 0, swipeCount: 0 }),
+  setVenues: (venues) => set({ venues }),
   nextVenue: () => set((state) => ({ currentVenueIndex: state.currentVenueIndex + 1 })),
   incrementSwipeCount: () => set((state) => ({ swipeCount: state.swipeCount + 1 })),
   setResults: (results) => set({ results }),

@@ -13,11 +13,61 @@ function stripUndefined(obj: Record<string, any>): Record<string, any> {
   );
 }
 
+/**
+ * Compute 20 coordinate shift offsets for a given radius.
+ * - Inner ring (8): compass directions at ~40% of radius
+ * - Outer ring (8): compass directions at ~75% of radius
+ * - Diagonal fill (4): intermediate angles at ~55% of radius
+ *
+ * 1 mile ≈ 0.01449 degrees latitude.
+ * Longitude degrees vary by latitude; we approximate using cos(lat).
+ */
+function computeCoordinateShifts(
+  radiusMiles: number,
+  centerLat: number,
+): { latOffset: number; lngOffset: number }[] {
+  const mileToDegLat = 0.01449;
+  const mileToDegLng = mileToDegLat / Math.cos(centerLat * (Math.PI / 180));
+
+  const shifts: { latOffset: number; lngOffset: number }[] = [];
+
+  // Helper: generate offset from angle (degrees) and distance (miles)
+  const addShift = (angleDeg: number, distMiles: number) => {
+    const rad = angleDeg * (Math.PI / 180);
+    shifts.push({
+      latOffset: Math.cos(rad) * distMiles * mileToDegLat,
+      lngOffset: Math.sin(rad) * distMiles * mileToDegLng,
+    });
+  };
+
+  const innerDist = radiusMiles * 0.4;
+  const outerDist = radiusMiles * 0.75;
+  const diagDist = radiusMiles * 0.55;
+
+  // Inner ring: 8 compass directions (N=0, NE=45, E=90, ...)
+  for (let angle = 0; angle < 360; angle += 45) {
+    addShift(angle, innerDist);
+  }
+
+  // Outer ring: 8 compass directions offset by 22.5° (NNE, ENE, ...)
+  for (let angle = 22.5; angle < 360; angle += 45) {
+    addShift(angle, outerDist);
+  }
+
+  // Diagonal fill: 4 intermediate angles
+  for (const angle of [11.25, 78.75, 191.25, 258.75]) {
+    addShift(angle, diagDist);
+  }
+
+  return shifts;
+}
+
 interface CreatePartyInput {
   name: string;
   zipCode: string;
   radiusMiles: 5 | 10 | 15 | 25;
   date?: string;
+  expectedMembers: number; // 2-6 for exact count, 0 for "6+" non-unanimous mode
   creatorId: string;
 }
 
@@ -25,14 +75,14 @@ interface CreatePartyInput {
  * Create a new Party and add the creator as the first member.
  */
 export async function createParty(input: CreatePartyInput): Promise<string> {
-  const { name, zipCode, radiusMiles, date, creatorId } = input;
+  const { name, zipCode, radiusMiles, date, expectedMembers, creatorId } = input;
 
   // Geocode zip code to lat/lng
   const { lat, lng } = await geocodeZipCode(zipCode);
 
   // Create party document
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc();
-  const partyData: Omit<Party, 'createdAt' | 'updatedAt'> & Record<string, any> = {
+  const partyData: Record<string, any> = {
     id: partyRef.id,
     name,
     zipCode,
@@ -42,6 +92,10 @@ export async function createParty(input: CreatePartyInput): Promise<string> {
     status: 'lobby',
     creatorId,
     memberIds: [creatorId],
+    expectedMembers,
+    venuesFetched: 0,
+    venuesExhausted: false,
+    completedShifts: 0,
     createdAt: firestore.FieldValue.serverTimestamp(),
     updatedAt: firestore.FieldValue.serverTimestamp(),
   };
@@ -54,7 +108,7 @@ export async function createParty(input: CreatePartyInput): Promise<string> {
 
   // Add creator as first member
   const user = auth().currentUser;
-  const memberData: Omit<PartyMember, 'joinedAt'> & Record<string, any> = {
+  const memberData: Record<string, any> = {
     userId: creatorId,
     displayName: user?.displayName ?? 'Host',
     joinedAt: firestore.FieldValue.serverTimestamp(),
@@ -101,14 +155,20 @@ export async function joinParty(partyId: string): Promise<void> {
 }
 
 /**
- * Start the swiping session — fetches venues and transitions party status.
+ * Ensure the party has started swiping.
+ * Any member can call this — it's idempotent.
+ * If the party is still in 'lobby', transitions to 'swiping' and fetches
+ * the first batch of venues from Google Places.
  */
-export async function startSwipingSession(partyId: string): Promise<void> {
+export async function ensureSwipingStarted(partyId: string): Promise<void> {
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
   const partyDoc = await partyRef.get();
   const party = partyDoc.data() as Party;
 
-  // Fetch venues from Google Places
+  // Already swiping or beyond — nothing to do
+  if (party.status !== 'lobby') return;
+
+  // Fetch first batch of venues (center point)
   const radiusMeters = party.radiusMiles * MILES_TO_METERS;
   const venues = await searchVenues({
     lat: party.centerLat,
@@ -133,10 +193,156 @@ export async function startSwipingSession(partyId: string): Promise<void> {
   // Update party status
   batch.update(partyRef, {
     status: 'swiping',
+    venuesFetched: venues.length,
+    venuesExhausted: false,
+    completedShifts: 0,
     updatedAt: firestore.FieldValue.serverTimestamp(),
   });
 
   await batch.commit();
+  console.log(`[Parties] Started swiping with ${venues.length} venues`);
+}
+
+/**
+ * Fetch more venues using coordinate shifting.
+ * Each call tries the next shift position and returns new unique venues.
+ * Returns the number of new venues added (0 if all shifts exhausted).
+ */
+export async function fetchMoreVenues(partyId: string): Promise<number> {
+  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
+  const partyDoc = await partyRef.get();
+  const party = partyDoc.data() as Party;
+
+  const completed = party.completedShifts ?? 0;
+
+  if (party.venuesExhausted || completed >= 20) {
+    console.log('[Parties] All coordinate shifts exhausted');
+    await partyRef.update({
+      venuesExhausted: true,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    return 0;
+  }
+
+  // Compute shifts for this party's radius and latitude
+  const shifts = computeCoordinateShifts(party.radiusMiles, party.centerLat);
+
+  if (completed >= shifts.length) {
+    console.log('[Parties] All shifts completed');
+    await partyRef.update({
+      venuesExhausted: true,
+      completedShifts: completed,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    return 0;
+  }
+
+  const shift = shifts[completed];
+  const shiftedLat = party.centerLat + shift.latOffset;
+  const shiftedLng = party.centerLng + shift.lngOffset;
+  const radiusMeters = party.radiusMiles * MILES_TO_METERS;
+
+  console.log(`[Parties] Trying shift ${completed + 1}/20: lat+${shift.latOffset.toFixed(4)}, lng+${shift.lngOffset.toFixed(4)}`);
+
+  const venues = await searchVenues({
+    lat: shiftedLat,
+    lng: shiftedLng,
+    radiusMeters,
+    date: party.date,
+  });
+
+  // Get existing venues for de-duplication (by ID and by name)
+  const existingVenues = await partyRef.collection(COLLECTIONS.VENUES).get();
+  const existingIds = new Set(existingVenues.docs.map((d) => d.id));
+  const existingNames = new Set(
+    existingVenues.docs.map((d) => (d.data().name ?? '').trim().toLowerCase())
+  );
+  const newVenues = venues.filter(
+    (v) => !existingIds.has(v.id) && !existingNames.has(v.name.trim().toLowerCase())
+  );
+
+  // Always increment completedShifts even if no new venues found
+  const newCompleted = completed + 1;
+  const isExhausted = newCompleted >= 20;
+
+  if (newVenues.length === 0) {
+    await partyRef.update({
+      completedShifts: newCompleted,
+      venuesExhausted: isExhausted,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[Parties] Shift ${newCompleted}/20: 0 new venues (all duplicates)`);
+    return 0;
+  }
+
+  // Write new venues to Firestore
+  const batch = firestore().batch();
+  newVenues.forEach((venue) => {
+    const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
+    batch.set(venueRef, stripUndefined({ ...venue, priorityScore: 0 }));
+  });
+
+  batch.update(partyRef, {
+    completedShifts: newCompleted,
+    venuesFetched: firestore.FieldValue.increment(newVenues.length),
+    venuesExhausted: isExhausted,
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+  console.log(`[Parties] Shift ${newCompleted}/20: ${newVenues.length} new venues (${venues.length} total, ${venues.length - newVenues.length} duplicates)`);
+  return newVenues.length;
+}
+
+/**
+ * Expand the search radius and reset shift state.
+ * De-duplicates against existing cached venues.
+ */
+export async function expandRadius(
+  partyId: string,
+  newRadius: 5 | 10 | 15 | 25,
+): Promise<number> {
+  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
+  const partyDoc = await partyRef.get();
+  const party = partyDoc.data() as Party;
+
+  // Fetch first batch at new radius
+  const radiusMeters = newRadius * MILES_TO_METERS;
+  const venues = await searchVenues({
+    lat: party.centerLat,
+    lng: party.centerLng,
+    radiusMeters,
+    date: party.date,
+  });
+
+  // De-duplicate against existing cache (by ID and by name)
+  const existingVenues = await partyRef.collection(COLLECTIONS.VENUES).get();
+  const existingIds = new Set(existingVenues.docs.map((d) => d.id));
+  const existingNames = new Set(
+    existingVenues.docs.map((d) => (d.data().name ?? '').trim().toLowerCase())
+  );
+  const newVenues = venues.filter(
+    (v) => !existingIds.has(v.id) && !existingNames.has(v.name.trim().toLowerCase())
+  );
+
+  // Write new venues + update party
+  const batch = firestore().batch();
+  newVenues.forEach((venue) => {
+    const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
+    batch.set(venueRef, stripUndefined({ ...venue, priorityScore: 0 }));
+  });
+
+  batch.update(partyRef, {
+    radiusMiles: newRadius,
+    completedShifts: 0,
+    venuesExhausted: false,
+    venuesFetched: firestore.FieldValue.increment(newVenues.length),
+    updatedAt: firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+  console.log(`[Parties] Expanded radius to ${newRadius}mi: ${newVenues.length} new venues`);
+  return newVenues.length;
 }
 
 /**
@@ -152,7 +358,8 @@ export async function getParty(partyId: string): Promise<Party | null> {
 }
 
 /**
- * Get cached venues for a Party, sorted by priority score.
+ * Get cached venues for a Party, sorted by priority score (highest first).
+ * Venues with more right-swipes appear first.
  */
 export async function getPartyVenues(partyId: string): Promise<Venue[]> {
   const snapshot = await firestore()
@@ -248,43 +455,4 @@ export function onMembersSnapshot(
         callback([]);
       }
     );
-}
-
-/**
- * Update party radius and re-fetch venues.
- */
-export async function updatePartyRadius(
-  partyId: string,
-  newRadius: 5 | 10 | 15 | 25
-): Promise<Venue[]> {
-  const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
-  const partyDoc = await partyRef.get();
-  const party = partyDoc.data() as Party;
-
-  // Update radius
-  await partyRef.update({
-    radiusMiles: newRadius,
-    updatedAt: firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Re-fetch venues with new radius
-  const radiusMeters = newRadius * MILES_TO_METERS;
-  const venues = await searchVenues({
-    lat: party.centerLat,
-    lng: party.centerLng,
-    radiusMeters,
-    date: party.date,
-  });
-
-  // Clear old venues and write new ones
-  const oldVenues = await partyRef.collection(COLLECTIONS.VENUES).get();
-  const batch = firestore().batch();
-  oldVenues.docs.forEach((doc) => batch.delete(doc.ref));
-  venues.forEach((venue) => {
-    const venueRef = partyRef.collection(COLLECTIONS.VENUES).doc(venue.id);
-    batch.set(venueRef, stripUndefined({ ...venue, priorityScore: 0 }));
-  });
-  await batch.commit();
-
-  return venues;
 }

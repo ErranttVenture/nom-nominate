@@ -89,6 +89,24 @@ export default function ResultsScreen() {
           </View>
         }
       />
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomActions}>
+        <TouchableOpacity
+          style={styles.lobbyBtn}
+          onPress={() => router.replace(`/party/${partyId}`)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.lobbyBtnText}>Back to Lobby</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.homeBtn}
+          onPress={() => router.replace('/(tabs)')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.homeBtnText}>Go Home</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -143,4 +161,18 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22,
   },
+  bottomActions: {
+    paddingHorizontal: 24, paddingBottom: 40, paddingTop: 12, gap: 10,
+  },
+  lobbyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    padding: 16, borderWidth: 2, borderColor: COLORS.border, borderRadius: 14,
+    backgroundColor: '#fff',
+  },
+  lobbyBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  homeBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    padding: 16, borderRadius: 14, backgroundColor: COLORS.primary,
+  },
+  homeBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
