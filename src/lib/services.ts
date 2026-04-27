@@ -18,11 +18,8 @@ import { geocodeZipCode as realGeocodeZipCode } from '@/lib/api/geocoding';
 // ===== AUTH SERVICE =====
 
 export const AuthService = {
-  sendVerificationCode: (
-    phone: string,
-    onAutoVerify?: (result: { isNewUser: boolean }) => void,
-  ) => {
-    return firebaseAuth.sendVerificationCode(phone, onAutoVerify);
+  sendVerificationCode: (phone: string) => {
+    return firebaseAuth.sendVerificationCode(phone);
   },
 
   confirmVerificationCode: async (verificationId: string, code: string) => {
@@ -54,6 +51,10 @@ export const PartyService = {
 
   joinParty: async (partyId: string) => {
     return firebaseParties.joinParty(partyId);
+  },
+
+  joinPartyByCode: async (code: string): Promise<string> => {
+    return firebaseParties.joinPartyByCode(code);
   },
 
   getParty: async (partyId: string): Promise<Party | null> => {

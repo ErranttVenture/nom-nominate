@@ -1,13 +1,29 @@
+/**
+ * Settings — profile card, settings list, sign-out.
+ * Uses the paper-card + chunky-shadow language.
+ */
+
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+import { View, Pressable, Alert, Linking, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { COLORS } from '@/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { AuthService } from '@/lib/services';
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { Avatar, NomButton, Icon } from '@/components/nom';
+import type { IconName } from '@/components/nom';
+
+interface SettingsRow {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const user = useAuthStore((s) => s.user);
 
   const handleSignOut = () => {
@@ -24,126 +40,157 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const rows: SettingsRow[] = [
+    {
+      icon: 'users',
+      label: 'Notifications',
+      onPress: () =>
+        Alert.alert('Notifications', 'Push notifications coming soon'),
+    },
+    {
+      icon: 'settings',
+      label: 'Appearance',
+      onPress: () =>
+        Alert.alert(
+          'Appearance',
+          'Auto-switches with system light / dark mode.'
+        ),
+    },
+    {
+      icon: 'share',
+      label: 'Privacy Policy',
+      onPress: () => Linking.openURL('https://nom-nominate.web.app/privacy'),
+    },
+    {
+      icon: 'forkknife',
+      label: 'Help & Support',
+      onPress: () => Linking.openURL('mailto:support@nomnominate.app'),
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Settings</Text>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      edges={['top']}
+    >
+      <View style={{ paddingHorizontal: SPACE[5], paddingBottom: SPACE[4] }}>
+        <NomText variant="displayXL" color={theme.text}>
+          settings
+        </NomText>
       </View>
 
-      <View style={styles.content}>
-        {/* Profile Section */}
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.displayName?.charAt(0).toUpperCase() ?? '?'}
-            </Text>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[8],
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Profile card */}
+        <Card>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: SPACE[4],
+              padding: SPACE[4],
+            }}
+          >
+            <Avatar
+              name={user?.displayName ?? '?'}
+              size={56}
+              rotation={-4}
+            />
+            <View style={{ flex: 1 }}>
+              <NomText variant="displayMd" color={theme.text}>
+                {user?.displayName ?? 'user'}
+              </NomText>
+              <NomText variant="bodyMd" soft>
+                {user?.phone ?? ''}
+              </NomText>
+            </View>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.displayName ?? 'User'}</Text>
-            <Text style={styles.profilePhone}>{user?.phone ?? ''}</Text>
-          </View>
-        </View>
+        </Card>
 
-        {/* Settings Items */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert('Notifications', 'Push notifications coming soon')}>
-            <Text style={styles.settingsIcon}>🔔</Text>
-            <Text style={styles.settingsLabel}>Notifications</Text>
-            <Text style={styles.settingsChevron}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem} onPress={() => Alert.alert('Appearance', 'Dark mode coming soon')}>
-            <Text style={styles.settingsIcon}>🎨</Text>
-            <Text style={styles.settingsLabel}>Appearance</Text>
-            <Text style={styles.settingsChevron}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem} onPress={() => Linking.openURL('https://nom-nominate.web.app/privacy')}>
-            <Text style={styles.settingsIcon}>📄</Text>
-            <Text style={styles.settingsLabel}>Privacy Policy</Text>
-            <Text style={styles.settingsChevron}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingsItem} onPress={() => Linking.openURL('mailto:support@nomnominate.app')}>
-            <Text style={styles.settingsIcon}>❓</Text>
-            <Text style={styles.settingsLabel}>Help & Support</Text>
-            <Text style={styles.settingsChevron}>›</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={{ height: SPACE[5] }} />
 
-        {/* Sign Out */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        {/* Settings rows */}
+        <Card>
+          {rows.map((row, i) => (
+            <Pressable
+              key={row.label}
+              onPress={row.onPress}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: SPACE[4],
+                borderBottomWidth: i < rows.length - 1 ? STROKE.std : 0,
+                borderBottomColor: theme.border,
+                gap: SPACE[3],
+              }}
+            >
+              <Icon name={row.icon} size={20} color={theme.text} />
+              <NomText variant="headingMd" color={theme.text} style={{ flex: 1 }}>
+                {row.label}
+              </NomText>
+              <NomText variant="displayMd" faint>
+                ›
+              </NomText>
+            </Pressable>
+          ))}
+        </Card>
 
-        <Text style={styles.version}>Nom Nominate v1.0.0</Text>
-      </View>
+        <View style={{ height: SPACE[6] }} />
+
+        <NomButton
+          label="SIGN OUT"
+          variant="destruct"
+          stretch
+          onPress={handleSignOut}
+        />
+
+        <NomText
+          variant="monoSm"
+          faint
+          center
+          uppercase
+          style={{ marginTop: SPACE[6], letterSpacing: 1.5 }}
+        >
+          NOM NOMINATE · V1.0.0
+        </NomText>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 24, paddingBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  content: { flex: 1, paddingHorizontal: 24 },
-  profileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: { color: '#fff', fontWeight: '800', fontSize: 22 },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  profilePhone: { fontSize: 14, color: COLORS.textLight, marginTop: 2 },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
-  },
-  settingsIcon: { fontSize: 20, marginRight: 12 },
-  settingsLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: COLORS.text },
-  settingsChevron: { fontSize: 22, color: COLORS.textLight },
-  signOutButton: {
-    padding: 16,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.danger,
-  },
-  signOutText: { fontSize: 16, fontWeight: '600', color: COLORS.danger },
-  version: {
-    textAlign: 'center',
-    color: COLORS.textLight,
-    fontSize: 12,
-    marginTop: 24,
-  },
-});
+/** Reusable paper-card w/ chunky shadow backer. */
+function Card({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+  return (
+    <View>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 3,
+          left: 3,
+          right: -3,
+          bottom: -3,
+          backgroundColor: theme.borderStrong,
+          borderRadius: RADIUS.lg,
+        }}
+      />
+      <View
+        style={{
+          backgroundColor: theme.surface,
+          borderWidth: STROKE.std,
+          borderColor: theme.borderStrong,
+          borderRadius: RADIUS.lg,
+          overflow: 'hidden',
+        }}
+      >
+        {children}
+      </View>
+    </View>
+  );
+}

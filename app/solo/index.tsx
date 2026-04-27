@@ -1,141 +1,174 @@
+/**
+ * Solo Setup — zip + radius form, then into /solo/browse.
+ * Same visual language as Create Party.
+ */
+
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   TextInput,
-  TouchableOpacity,
-  StyleSheet,
   ScrollView,
   Alert,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, PARTY } from '@/constants';
+import { PARTY } from '@/constants';
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { NomButton, IconButton, Sticker } from '@/components/nom';
+
+const CHIP_TILTS = [-3, 2, -2, 3];
 
 export default function SoloSetupScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const [zipCode, setZipCode] = useState('');
-  const [radius, setRadius] = useState<5 | 10 | 15 | 25>(PARTY.DEFAULT_RADIUS_MILES as 10);
+  const [radius, setRadius] = useState<5 | 10 | 15 | 25>(
+    PARTY.DEFAULT_RADIUS_MILES as 10
+  );
+  const [focused, setFocused] = useState(false);
 
   const handleStart = () => {
     if (!/^\d{5}$/.test(zipCode)) {
       Alert.alert('Invalid Zip Code', 'Please enter a valid 5-digit zip code.');
       return;
     }
-
     router.push({
       pathname: '/solo/browse',
       params: { zipCode, radius: String(radius) },
     });
   };
 
+  const inputStyle = {
+    backgroundColor: theme.surface,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACE[4],
+    paddingVertical: SPACE[3] + 2,
+    fontSize: 18,
+    fontFamily: 'PatrickHand',
+    color: theme.text,
+    borderWidth: focused ? STROKE.chunky : STROKE.std,
+    borderColor: focused ? theme.action : theme.borderStrong,
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/')}>
-          <Text style={styles.backBtnText}>🏠</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Solo Browse</Text>
-      </View>
-
-      <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
-        <Text style={styles.description}>
-          Browse restaurants on your own — no party needed! Just enter your zip code and start swiping.
-        </Text>
-
-        {/* Zip Code */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>ZIP CODE</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter zip code"
-            placeholderTextColor="#b2bec3"
-            value={zipCode}
-            onChangeText={setZipCode}
-            keyboardType="number-pad"
-            maxLength={5}
-            autoFocus
-          />
-        </View>
-
-        {/* Search Radius */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>SEARCH RADIUS</Text>
-          <View style={styles.radiusOptions}>
-            {PARTY.RADIUS_OPTIONS.map((r) => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.radiusOption, radius === r && styles.radiusSelected]}
-                onPress={() => setRadius(r as typeof radius)}
-              >
-                <Text
-                  style={[styles.radiusText, radius === r && styles.radiusTextSelected]}
-                >
-                  {r} mi
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Start Button */}
-        <TouchableOpacity
-          style={styles.startBtn}
-          onPress={handleStart}
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      edges={['top']}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Header */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: SPACE[3],
+            paddingHorizontal: SPACE[5],
+            paddingBottom: SPACE[3],
+          }}
         >
-          <Text style={styles.startBtnText}>Start Browsing</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <IconButton name="back" size={44} onPress={() => router.back()} />
+          <NomText variant="displayLg">solo browse</NomText>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: SPACE[5],
+            paddingBottom: SPACE[8],
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <NomText
+            variant="bodyLg"
+            soft
+            style={{ marginBottom: SPACE[5] }}
+          >
+            No party, no problem. Pop a zip, pick a radius, start swiping.
+          </NomText>
+
+          {/* Zip */}
+          <View style={{ marginBottom: SPACE[5] }}>
+            <NomText
+              variant="monoSm"
+              soft
+              uppercase
+              style={{ marginBottom: SPACE[2], letterSpacing: 1.5 }}
+            >
+              ZIP CODE
+            </NomText>
+            <TextInput
+              style={inputStyle}
+              placeholder="10001"
+              placeholderTextColor={theme.textFaint}
+              value={zipCode}
+              onChangeText={setZipCode}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              keyboardType="number-pad"
+              maxLength={5}
+              autoFocus
+            />
+          </View>
+
+          {/* Radius */}
+          <View style={{ marginBottom: SPACE[6] }}>
+            <NomText
+              variant="monoSm"
+              soft
+              uppercase
+              style={{ marginBottom: SPACE[2], letterSpacing: 1.5 }}
+            >
+              SEARCH RADIUS
+            </NomText>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: SPACE[2],
+                paddingTop: SPACE[2],
+              }}
+            >
+              {PARTY.RADIUS_OPTIONS.map((r, i) => {
+                const selected = radius === r;
+                return (
+                  <Pressable
+                    key={r}
+                    onPress={() => setRadius(r as typeof radius)}
+                    style={{ marginBottom: SPACE[2] }}
+                  >
+                    <Sticker
+                      color={selected ? theme.action : theme.surfaceAlt}
+                      textColor={theme.text}
+                      rotation={CHIP_TILTS[i % CHIP_TILTS.length]}
+                      paddingX={14}
+                      paddingY={4}
+                      variant="displayMd"
+                    >
+                      {`${r} mi`}
+                    </Sticker>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <NomButton
+            label="START BROWSING"
+            variant="primary"
+            leadIcon="forkknife"
+            stretch
+            onPress={handleStart}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 24, paddingBottom: 16,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 12,
-    backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  backBtnText: { fontSize: 18 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  description: {
-    fontSize: 15, color: COLORS.textLight, lineHeight: 22,
-    marginBottom: 24,
-  },
-  form: { flex: 1, paddingHorizontal: 24 },
-  formGroup: { marginBottom: 20 },
-  label: {
-    fontSize: 13, fontWeight: '700', letterSpacing: 0.5,
-    color: COLORS.textLight, marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16,
-    fontSize: 16, color: COLORS.text,
-    borderWidth: 2, borderColor: COLORS.border,
-  },
-  radiusOptions: { flexDirection: 'row', gap: 8 },
-  radiusOption: {
-    flex: 1, padding: 12, borderRadius: 12,
-    backgroundColor: '#fff', borderWidth: 2,
-    borderColor: COLORS.border, alignItems: 'center',
-  },
-  radiusSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(255,107,53,0.08)',
-  },
-  radiusText: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  radiusTextSelected: { color: COLORS.primary },
-  startBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16, padding: 18,
-    alignItems: 'center', marginTop: 8, marginBottom: 40,
-  },
-  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-});

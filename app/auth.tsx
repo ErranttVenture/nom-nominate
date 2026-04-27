@@ -1,22 +1,32 @@
+/**
+ * Auth — phone → SMS verify → name.
+ *
+ * Visual: brand lockup + tagline up top, halftone decor, themed inputs with
+ * focus state, NomButton CTAs. Business logic (auto-verify, resend cooldown,
+ * session-expired handling) is preserved from the prior implementation.
+ */
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
-  TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS } from '@/constants';
 import { AuthService } from '@/lib/services';
 import { useAuthStore } from '@/stores/authStore';
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { NomButton, Lockup, Halftone } from '@/components/nom';
 
 const TUTORIAL_SEEN_KEY = 'nom_tutorial_seen';
+const RESEND_COOLDOWN_SECONDS = 30;
 
 type AuthStep = 'phone' | 'verify' | 'name';
 
@@ -25,10 +35,9 @@ function sanitizePhone(raw: string): string {
   return raw.replace(/[^0-9]/g, '');
 }
 
-const RESEND_COOLDOWN_SECONDS = 30;
-
 export default function AuthScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const setVerifying = useAuthStore((s) => s.setVerifying);
   const pendingPartyId = useAuthStore((s) => s.pendingPartyId);
   const setPendingPartyId = useAuthStore((s) => s.setPendingPartyId);
@@ -37,7 +46,6 @@ export default function AuthScreen() {
   const navigateAfterAuth = useCallback(async () => {
     setVerifying(false);
 
-    // Check if this is the user's first time — show tutorial if so
     try {
       const seen = await AsyncStorage.getItem(TUTORIAL_SEEN_KEY);
       if (!seen) {
@@ -46,7 +54,7 @@ export default function AuthScreen() {
         return;
       }
     } catch {
-      // AsyncStorage not available — skip tutorial check
+      // AsyncStorage unavailable — skip tutorial check
     }
 
     if (pendingPartyId) {
@@ -64,11 +72,10 @@ export default function AuthScreen() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [focused, setFocused] = useState(false);
 
-  // Refs to avoid stale closures
   const verificationIdRef = useRef<string | null>(null);
   const codeInputRef = useRef<TextInput>(null);
-  // Guard against double sign-in (auto-verify + manual verify racing)
   const signedInRef = useRef(false);
 
   // Tell the auth store we're verifying so index.tsx won't navigate away
@@ -93,26 +100,6 @@ export default function AuthScreen() {
       : `+1${digits}`;
   }, [phone]);
 
-  /**
-   * Called when Android auto-verifies the SMS code in the background,
-   * AFTER we've already moved to the code entry screen.
-   */
-  const handleAutoVerify = useCallback(
-    (result: { isNewUser: boolean }) => {
-      console.log('[Auth] Auto-verify callback fired, isNewUser:', result.isNewUser);
-      if (signedInRef.current) return; // already handled
-      signedInRef.current = true;
-      setLoading(false);
-
-      if (result.isNewUser) {
-        setStep('name');
-      } else {
-        navigateAfterAuth();
-      }
-    },
-    [navigateAfterAuth]
-  );
-
   const handleSendCode = useCallback(
     async (isResend = false) => {
       const digits = sanitizePhone(phone);
@@ -132,10 +119,10 @@ export default function AuthScreen() {
         const formattedPhone = getFormattedPhone();
         console.log('[Auth] Sending code to:', formattedPhone, isResend ? '(resend)' : '(initial)');
 
-        const result = await AuthService.sendVerificationCode(
-          formattedPhone,
-          handleAutoVerify, // callback for late auto-verification
-        );
+        // On Android this awaits the full auto-verify window
+        // (~10s) before resolving. The user stays on the phone-entry
+        // screen with the button spinner the whole time.
+        const result = await AuthService.sendVerificationCode(formattedPhone);
 
         console.log(
           '[Auth] Result — autoVerified:',
@@ -144,14 +131,12 @@ export default function AuthScreen() {
           result.verificationId?.substring(0, 15)
         );
 
-        // Always store the latest verificationId
         verificationIdRef.current = result.verificationId;
 
-        // Handle immediate auto-verification (AUTO_VERIFIED before CODE_SENT)
         if (result.autoVerified) {
-          if (signedInRef.current) return; // already handled by callback
+          if (signedInRef.current) return;
           signedInRef.current = true;
-          console.log('[Auth] Immediate auto-verify! isNewUser:', result.isNewUser);
+          console.log('[Auth] Auto-verify succeeded! isNewUser:', result.isNewUser);
           if (result.isNewUser) {
             setStep('name');
           } else {
@@ -160,6 +145,7 @@ export default function AuthScreen() {
           return;
         }
 
+        // Auto-verify timed out (or iOS) — show the manual code entry screen.
         if (!isResend) {
           setStep('verify');
           setTimeout(() => codeInputRef.current?.focus(), 300);
@@ -173,7 +159,7 @@ export default function AuthScreen() {
         setLoading(false);
       }
     },
-    [phone, getFormattedPhone, router, setVerifying, handleAutoVerify]
+    [phone, getFormattedPhone, navigateAfterAuth]
   );
 
   const handleResendCode = useCallback(() => {
@@ -187,7 +173,6 @@ export default function AuthScreen() {
       return;
     }
     if (signedInRef.current) {
-      // Auto-verification already signed in — just navigate
       console.log('[Auth] Already signed in via auto-verify, navigating');
       navigateAfterAuth();
       return;
@@ -247,7 +232,7 @@ export default function AuthScreen() {
     } finally {
       setLoading(false);
     }
-  }, [code, router, handleResendCode, setVerifying]);
+  }, [code, handleResendCode, navigateAfterAuth]);
 
   const handleSetName = useCallback(async () => {
     if (displayName.trim().length < 2) {
@@ -264,232 +249,235 @@ export default function AuthScreen() {
     } finally {
       setLoading(false);
     }
-  }, [displayName, router, setVerifying]);
+  }, [displayName, navigateAfterAuth]);
+
+  // Shared themed input style
+  const inputStyle = {
+    backgroundColor: theme.surface,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACE[4],
+    paddingVertical: SPACE[3] + 2,
+    fontSize: 18,
+    fontFamily: 'PatrickHand',
+    color: theme.text,
+    borderWidth: focused ? STROKE.chunky : STROKE.std,
+    borderColor: focused ? theme.action : theme.borderStrong,
+  };
+
+  const SectionLabel = ({ children }: { children: string }) => (
+    <NomText
+      variant="monoSm"
+      soft
+      uppercase
+      style={{ marginBottom: SPACE[2], letterSpacing: 1.5 }}
+    >
+      {children}
+    </NomText>
+  );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView
+      edges={['top', 'bottom']}
+      style={{ flex: 1, backgroundColor: theme.bg }}
     >
-      <View style={styles.content}>
-        {/* Logo */}
-        <Text style={styles.logo}>🍽️</Text>
-        <Text style={styles.title}>Nom Nominate</Text>
-        <Text style={styles.tagline}>Swipe together. Eat together.</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Halftone top decor */}
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0 }}
+        >
+          <Halftone
+            width={420}
+            height={160}
+            color={theme.text}
+            opacity={0.12}
+          />
+        </View>
 
-        {/* Phone Step */}
-        {step === 'phone' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.label}>PHONE NUMBER</Text>
-            <View style={styles.phoneRow}>
-              <View style={styles.countryCode}>
-                <Text style={styles.countryCodeText}>+1</Text>
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: SPACE[6],
+            justifyContent: 'center',
+          }}
+        >
+          {/* Brand */}
+          <View style={{ alignItems: 'center', marginBottom: SPACE[8] }}>
+            <Lockup size={1.05} />
+            <NomText
+              variant="scriptCap"
+              soft
+              center
+              style={{ marginTop: -SPACE[2] }}
+            >
+              swipe together. eat together.
+            </NomText>
+          </View>
+
+          {/* Phone Step */}
+          {step === 'phone' && (
+            <View>
+              <SectionLabel>PHONE NUMBER</SectionLabel>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: SPACE[2],
+                  marginBottom: SPACE[5],
+                }}
+              >
+                <View
+                  style={[
+                    inputStyle,
+                    {
+                      justifyContent: 'center',
+                      paddingHorizontal: SPACE[4],
+                      borderWidth: STROKE.std,
+                      borderColor: theme.borderStrong,
+                    },
+                  ]}
+                >
+                  <NomText variant="headingLg" color={theme.text}>
+                    +1
+                  </NomText>
+                </View>
+                <TextInput
+                  style={[inputStyle, { flex: 1 }]}
+                  placeholder="5551234567"
+                  placeholderTextColor={theme.textFaint}
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  autoFocus
+                  maxLength={15}
+                />
               </View>
+              <NomButton
+                label="SEND CODE"
+                variant="primary"
+                stretch
+                loading={loading}
+                onPress={() => handleSendCode(false)}
+              />
+              {loading && (
+                <NomText
+                  variant="bodyMd"
+                  soft
+                  center
+                  style={{ marginTop: SPACE[3] }}
+                >
+                  Looking for code…
+                </NomText>
+              )}
+            </View>
+          )}
+
+          {/* Verify Step */}
+          {step === 'verify' && (
+            <View>
+              <SectionLabel>VERIFICATION CODE</SectionLabel>
+              <NomText
+                variant="bodyMd"
+                soft
+                style={{ marginBottom: SPACE[3] }}
+              >
+                We sent a 6-digit code to +1{sanitizePhone(phone)}
+              </NomText>
               <TextInput
-                style={[styles.input, styles.phoneInput]}
-                placeholder="5551234567"
-                placeholderTextColor={COLORS.textLight}
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
+                ref={codeInputRef}
+                style={[
+                  inputStyle,
+                  {
+                    fontSize: 28,
+                    textAlign: 'center',
+                    letterSpacing: 8,
+                    marginBottom: SPACE[5],
+                  },
+                ]}
+                placeholder="000000"
+                placeholderTextColor={theme.textFaint}
+                keyboardType="number-pad"
+                value={code}
+                onChangeText={setCode}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                maxLength={6}
+              />
+              <View style={{ marginBottom: SPACE[3] }}>
+                <NomButton
+                  label="VERIFY"
+                  variant="primary"
+                  stretch
+                  loading={loading}
+                  onPress={handleVerifyCode}
+                />
+              </View>
+              <Pressable
+                onPress={handleResendCode}
+                disabled={loading || resendCooldown > 0}
+                style={{
+                  alignItems: 'center',
+                  paddingVertical: SPACE[3],
+                  opacity: resendCooldown > 0 ? 0.5 : 1,
+                }}
+              >
+                <NomText variant="headingMd" soft>
+                  {resendCooldown > 0
+                    ? `resend code (${resendCooldown}s)`
+                    : 'resend code'}
+                </NomText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setStep('phone');
+                  setCode('');
+                  verificationIdRef.current = null;
+                  signedInRef.current = false;
+                }}
+                style={{
+                  alignItems: 'center',
+                  paddingVertical: SPACE[2],
+                }}
+              >
+                <NomText variant="bodyMd" faint>
+                  ← change phone number
+                </NomText>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Name Step */}
+          {step === 'name' && (
+            <View>
+              <SectionLabel>WHAT SHOULD WE CALL YOU?</SectionLabel>
+              <TextInput
+                style={[inputStyle, { marginBottom: SPACE[5] }]}
+                placeholder="Your name"
+                placeholderTextColor={theme.textFaint}
+                value={displayName}
+                onChangeText={setDisplayName}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
                 autoFocus
-                maxLength={15}
+                autoCapitalize="words"
+                maxLength={30}
+              />
+              <NomButton
+                label="LET'S GO"
+                variant="primary"
+                trailIcon="bolt"
+                stretch
+                loading={loading}
+                onPress={handleSetName}
               />
             </View>
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
-              onPress={() => handleSendCode(false)}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Send Verification Code</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Verify Step */}
-        {step === 'verify' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.label}>VERIFICATION CODE</Text>
-            <Text style={styles.hint}>
-              We sent a 6-digit code to +1{sanitizePhone(phone)}
-            </Text>
-            <TextInput
-              ref={codeInputRef}
-              style={styles.input}
-              placeholder="000000"
-              placeholderTextColor={COLORS.textLight}
-              keyboardType="number-pad"
-              value={code}
-              onChangeText={setCode}
-              maxLength={6}
-              textAlign="center"
-              letterSpacing={8}
-            />
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
-              onPress={handleVerifyCode}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Verify</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.secondaryButton, resendCooldown > 0 && styles.buttonDisabled]}
-              onPress={handleResendCode}
-              disabled={loading || resendCooldown > 0}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {resendCooldown > 0
-                  ? `Resend Code (${resendCooldown}s)`
-                  : 'Resend Code'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => {
-                setStep('phone');
-                setCode('');
-                verificationIdRef.current = null;
-                signedInRef.current = false;
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>Change Phone Number</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Name Step */}
-        {step === 'name' && (
-          <View style={styles.formContainer}>
-            <Text style={styles.label}>WHAT SHOULD WE CALL YOU?</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              placeholderTextColor={COLORS.textLight}
-              value={displayName}
-              onChangeText={setDisplayName}
-              autoFocus
-              autoCapitalize="words"
-              maxLength={30}
-            />
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
-              onPress={handleSetName}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Let's Go! 🎉</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.dark,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  logo: {
-    fontSize: 56,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: -1,
-    marginBottom: 4,
-  },
-  tagline: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 48,
-  },
-  formContainer: {
-    width: '100%',
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 8,
-  },
-  hint: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 16,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
-  },
-  countryCode: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  countryCodeText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  phoneInput: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 14,
-    padding: 16,
-    fontSize: 18,
-    color: '#fff',
-    marginBottom: 20,
-    fontWeight: '600',
-  },
-  primaryButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  secondaryButton: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});

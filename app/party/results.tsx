@@ -1,178 +1,241 @@
-import React, { useEffect } from 'react';
+/**
+ * Results — ranked venue voting chart.
+ *
+ * Visual: each row is a small polaroid-feel card with a rank badge
+ * (sticker), a vote bar, and a percent readout. Top-3 ranks get
+ * accent color (orange / blue / yellow).
+ *
+ * Business logic comes from `useResults`, unchanged.
+ */
+
+import React from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
   FlatList,
-  StyleSheet,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants';
 import { useResults } from '@/hooks/useResults';
+import { useTheme } from '@/theme/ThemeContext';
+import { NomText } from '@/theme/NomText';
+import { COLOR, RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { NomButton, Sticker } from '@/components/nom';
 import type { VenueVotes } from '@/types';
 
-const RANK_COLORS = ['#f0932b', '#95a5a6', '#cd6133'];
+const RANK_COLORS = [COLOR.brand.orange, COLOR.brand.blue, COLOR.brand.warn];
 
 export default function ResultsScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
+  const theme = useTheme();
   const { results, party, loading } = useResults(partyId!);
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.bg,
+        }}
+      >
+        <ActivityIndicator color={theme.action} />
       </View>
     );
   }
 
-  const renderResultItem = ({ item, index }: { item: VenueVotes; index: number }) => {
+  const renderItem = ({
+    item,
+    index,
+  }: {
+    item: VenueVotes;
+    index: number;
+  }) => {
     const rank = index + 1;
-    const rankColor = RANK_COLORS[index] ?? COLORS.border;
+    const accent = RANK_COLORS[index] ?? theme.surfaceAlt;
     const isTopThree = index < 3;
 
     return (
-      <View style={styles.resultItem}>
-        <View style={[styles.rankBadge, { backgroundColor: isTopThree ? rankColor : '#dfe6e9' }]}>
-          <Text style={[styles.rankText, !isTopThree && { color: COLORS.text }]}>
-            {rank}
-          </Text>
-        </View>
-        <View style={styles.resultInfo}>
-          <Text style={styles.resultName}>{item.venueName}</Text>
-          <Text style={styles.resultCuisine}>{item.cuisine}</Text>
-          <View style={styles.voteBar}>
-            <View
-              style={[styles.voteBarFill, { width: `${item.percentage}%` }]}
-            />
+      <View
+        style={{
+          marginBottom: SPACE[3],
+        }}
+      >
+        {/* Chunky shadow backer */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 3,
+            left: 3,
+            right: -3,
+            bottom: -3,
+            backgroundColor: theme.borderStrong,
+            borderRadius: RADIUS.lg,
+          }}
+        />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: SPACE[3],
+            padding: SPACE[3],
+            backgroundColor: theme.surface,
+            borderWidth: STROKE.std,
+            borderColor: theme.borderStrong,
+            borderRadius: RADIUS.lg,
+          }}
+        >
+          {/* Rank badge */}
+          <View style={{ width: 42 }}>
+            <Sticker
+              color={isTopThree ? accent : theme.surfaceAlt}
+              textColor={COLOR.neutral.ink}
+              rotation={(index % 2 === 0 ? -4 : 4)}
+              paddingX={10}
+              paddingY={2}
+              variant="displayMd"
+            >
+              {`#${rank}`}
+            </Sticker>
           </View>
-        </View>
-        <View style={styles.voteCount}>
-          <Text style={styles.votePercent}>{item.percentage}%</Text>
-          <Text style={styles.voteLabel}>
-            {item.rightSwipes}/{item.totalMembers}
-          </Text>
+
+          {/* Info */}
+          <View style={{ flex: 1 }}>
+            <NomText variant="headingLg" color={theme.text} numberOfLines={1}>
+              {item.venueName}
+            </NomText>
+            <NomText variant="bodySm" soft>
+              {item.cuisine}
+            </NomText>
+            <View
+              style={{
+                marginTop: SPACE[1] + 2,
+                height: 8,
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 4,
+                backgroundColor: theme.bg,
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  width: `${item.percentage}%`,
+                  height: '100%',
+                  backgroundColor: accent,
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Percent */}
+          <View style={{ alignItems: 'flex-end' }}>
+            <NomText variant="displayMd" color={theme.text}>
+              {item.percentage}%
+            </NomText>
+            <NomText variant="monoSm" faint uppercase>
+              {item.rightSwipes}/{item.totalMembers}
+            </NomText>
+          </View>
         </View>
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Results</Text>
+    <SafeAreaView
+      edges={['top', 'bottom']}
+      style={{ flex: 1, backgroundColor: theme.bg }}
+    >
+      {/* Top nav */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: SPACE[5],
+          paddingVertical: SPACE[2],
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={10}>
+          <NomText variant="bodyLg" soft>
+            ← back
+          </NomText>
+        </Pressable>
+        <NomText variant="monoSm" soft uppercase>
+          RESULTS
+        </NomText>
+        <View style={{ width: 40 }} />
       </View>
 
-      <Text style={styles.subtitle}>
-        {party?.name} · {party?.memberIds.length} members voted
-      </Text>
+      {/* Header */}
+      <View style={{ paddingHorizontal: SPACE[5], marginBottom: SPACE[3] }}>
+        <NomText variant="displayXL" color={theme.text}>
+          the lineup
+        </NomText>
+        <NomText variant="bodyMd" soft>
+          {party?.name ?? 'party'} ·{' '}
+          {party?.memberIds?.length ?? 0} members voted
+        </NomText>
+      </View>
 
       <FlatList
         data={results}
         keyExtractor={(item) => item.venueId}
-        renderItem={renderResultItem}
-        contentContainerStyle={styles.listContent}
+        renderItem={renderItem}
+        contentContainerStyle={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[4],
+        }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>📊</Text>
-            <Text style={styles.emptyTitle}>No results yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Results will appear once members start swiping.
-            </Text>
+          <View style={{ alignItems: 'center', padding: SPACE[8] }}>
+            <NomText variant="displayLg" center>
+              no votes yet
+            </NomText>
+            <NomText
+              variant="bodyMd"
+              soft
+              center
+              style={{ marginTop: SPACE[2], maxWidth: 260 }}
+            >
+              Results appear once members start swiping.
+            </NomText>
           </View>
         }
       />
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={styles.lobbyBtn}
-          onPress={() => router.replace(`/party/${partyId}`)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.lobbyBtnText}>Back to Lobby</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.homeBtn}
-          onPress={() => router.replace('/(tabs)')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.homeBtnText}>Go Home</Text>
-        </TouchableOpacity>
+      {/* Bottom actions */}
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: SPACE[2],
+          paddingHorizontal: SPACE[5],
+          paddingTop: SPACE[2],
+          paddingBottom: SPACE[4],
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <NomButton
+            label="LOBBY"
+            variant="secondary"
+            stretch
+            onPress={() => router.replace(`/party/${partyId}`)}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <NomButton
+            label="HOME"
+            variant="primary"
+            stretch
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 24, paddingBottom: 8,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 12, backgroundColor: '#fff',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  backBtnText: { fontSize: 18 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  subtitle: {
-    fontSize: 14, color: COLORS.textLight,
-    paddingHorizontal: 24, marginBottom: 20,
-  },
-  listContent: { paddingHorizontal: 24, paddingBottom: 40 },
-  resultItem: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  rankBadge: {
-    width: 32, height: 32, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  rankText: { fontWeight: '800', fontSize: 14, color: '#fff' },
-  resultInfo: { flex: 1 },
-  resultName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  resultCuisine: { fontSize: 12, color: COLORS.textLight },
-  voteBar: {
-    width: '100%', height: 6, backgroundColor: '#f0f0f0',
-    borderRadius: 3, marginTop: 8, overflow: 'hidden',
-  },
-  voteBarFill: {
-    height: '100%', borderRadius: 3, backgroundColor: COLORS.primary,
-  },
-  voteCount: { alignItems: 'flex-end' },
-  votePercent: { fontSize: 20, fontWeight: '800', color: COLORS.primary },
-  voteLabel: { fontSize: 11, color: COLORS.textLight },
-  emptyState: { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  emptySubtitle: {
-    fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22,
-  },
-  bottomActions: {
-    paddingHorizontal: 24, paddingBottom: 40, paddingTop: 12, gap: 10,
-  },
-  lobbyBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: 16, borderWidth: 2, borderColor: COLORS.border, borderRadius: 14,
-    backgroundColor: '#fff',
-  },
-  lobbyBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  homeBtn: {
-    alignItems: 'center', justifyContent: 'center',
-    padding: 16, borderRadius: 14, backgroundColor: COLORS.primary,
-  },
-  homeBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-});

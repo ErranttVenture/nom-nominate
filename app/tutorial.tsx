@@ -1,58 +1,84 @@
+/**
+ * Tutorial — 5-step intro. Each step has a big sticker-style icon tag and
+ * a marker-set title/description.
+ */
+
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ScrollView,
-} from 'react-native';
+import { View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { RADIUS, SPACE } from '@/theme/tokens';
+import { NomButton, Splat, Icon } from '@/components/nom';
+import type { IconName } from '@/components/nom';
 
 interface TutorialStep {
-  emoji: string;
+  icon: IconName;
+  splatSeed: 1 | 2 | 3 | 4;
+  splatColor: 'action' | 'splatNo' | 'warn' | 'match';
   title: string;
   description: string;
 }
 
 const STEPS: TutorialStep[] = [
   {
-    emoji: '🎉',
-    title: 'Create a Party',
-    description: 'Start by creating a party. Give it a name, enter your zip code, and choose how far you want to search for restaurants.',
+    icon: 'plus',
+    splatSeed: 1,
+    splatColor: 'action',
+    title: 'start a party',
+    description:
+      'Name it, drop your zip, pick a radius. A 5-char join code gets baked in.',
   },
   {
-    emoji: '👥',
-    title: 'Invite Friends',
-    description: 'Share your party code with friends so they can join. Or use Solo Browse to find restaurants on your own!',
+    icon: 'users',
+    splatSeed: 2,
+    splatColor: 'splatNo',
+    title: 'invite your crew',
+    description:
+      "Share the code so friends can jump in. Or solo-browse if you're flying alone.",
   },
   {
-    emoji: '👆',
-    title: 'Swipe to Vote',
-    description: 'Swipe right on restaurants you love, left on ones you\'re not feeling. Each card shows the restaurant\'s name, cuisine, rating, and price range.',
+    icon: 'heart',
+    splatSeed: 3,
+    splatColor: 'action',
+    title: 'swipe to vote',
+    description:
+      "Right for YUM, left for NOPE. Name, cuisine, rating, price — all on the card.",
   },
   {
-    emoji: '🏆',
-    title: 'See Results',
-    description: 'Once everyone has swiped, see which restaurants your group agreed on! The top pick is your nomination.',
+    icon: 'star',
+    splatSeed: 4,
+    splatColor: 'warn',
+    title: 'see the lineup',
+    description:
+      'When everyone\'s swiped, the group pick gets nominated. Ties broken by votes.',
   },
   {
-    emoji: '🍽️',
-    title: 'Enjoy Your Meal!',
-    description: 'Head to your winning restaurant and enjoy! Look for special offers on some venues for extra savings.',
+    icon: 'forkknife',
+    splatSeed: 1,
+    splatColor: 'match',
+    title: 'go eat',
+    description:
+      'Tap the winner, map opens, dinner happens. Some spots have deals — watch for the flame.',
   },
 ];
 
 export default function TutorialScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
 
   const isLast = currentStep === STEPS.length - 1;
   const step = STEPS[currentStep];
+  const splatColorResolved =
+    step.splatColor === 'action'
+      ? theme.action
+      : step.splatColor === 'splatNo'
+        ? theme.splatNo
+        : step.splatColor === 'warn'
+          ? theme.warn
+          : theme.match;
 
   const handleNext = () => {
     if (isLast) {
@@ -62,125 +88,124 @@ export default function TutorialScreen() {
     }
   };
 
-  const handleSkip = () => {
-    router.replace('/(tabs)');
-  };
+  const handleSkip = () => router.replace('/(tabs)');
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Skip button */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={handleSkip}>
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      edges={['top', 'bottom']}
+    >
+      {/* Skip */}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          paddingHorizontal: SPACE[5],
+          paddingTop: SPACE[2],
+        }}
+      >
+        <Pressable onPress={handleSkip} hitSlop={10}>
+          <NomText variant="bodyLg" soft uppercase>
+            skip →
+          </NomText>
+        </Pressable>
       </View>
 
       {/* Step content */}
-      <View style={styles.content}>
-        <Text style={styles.stepEmoji}>{step.emoji}</Text>
-        <Text style={styles.stepTitle}>{step.title}</Text>
-        <Text style={styles.stepDescription}>{step.description}</Text>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: SPACE[8],
+        }}
+      >
+        {/* Splat + icon badge */}
+        <View
+          style={{
+            width: 180,
+            height: 180,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: SPACE[6],
+          }}
+        >
+          <Splat
+            size={180}
+            color={splatColorResolved}
+            seed={step.splatSeed}
+            rotation={-8}
+            style={{ position: 'absolute', top: 0, left: 0 }}
+          />
+          <View
+            style={{
+              transform: [{ rotate: '-4deg' }],
+              backgroundColor: theme.surface,
+              borderWidth: 2.5,
+              borderColor: theme.borderStrong,
+              borderRadius: RADIUS.lg,
+              padding: SPACE[4],
+            }}
+          >
+            <Icon name={step.icon} size={48} color={theme.text} />
+          </View>
+        </View>
+
+        <NomText
+          variant="displayXL"
+          color={theme.text}
+          center
+          style={{ marginBottom: SPACE[4] }}
+        >
+          {step.title}
+        </NomText>
+        <NomText variant="bodyLg" soft center style={{ maxWidth: 320 }}>
+          {step.description}
+        </NomText>
       </View>
 
       {/* Progress dots */}
-      <View style={styles.dots}>
-        {STEPS.map((_, i) => (
-          <View
-            key={i}
-            style={[styles.dot, i === currentStep && styles.dotActive]}
-          />
-        ))}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: SPACE[2],
+          marginBottom: SPACE[6],
+        }}
+      >
+        {STEPS.map((_, i) => {
+          const active = i === currentStep;
+          return (
+            <View
+              key={i}
+              style={{
+                width: active ? 28 : 10,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: active ? theme.action : theme.border,
+                borderWidth: 1.5,
+                borderColor: theme.borderStrong,
+              }}
+            />
+          );
+        })}
       </View>
 
-      {/* Next / Get Started button */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.nextBtn}
+      {/* Next / Get Started */}
+      <View
+        style={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[6],
+        }}
+      >
+        <NomButton
+          label={isLast ? "LET'S GO" : 'NEXT'}
+          variant="primary"
+          stretch
+          trailIcon={isLast ? 'bolt' : undefined}
           onPress={handleNext}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.nextBtnText}>
-            {isLast ? 'Get Started' : 'Next'}
-          </Text>
-        </TouchableOpacity>
+        />
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  skipText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textLight,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  stepEmoji: {
-    fontSize: 72,
-    marginBottom: 24,
-  },
-  stepTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  stepDescription: {
-    fontSize: 16,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.border,
-  },
-  dotActive: {
-    backgroundColor: COLORS.primary,
-    width: 24,
-  },
-  bottomBar: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  nextBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  nextBtnText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-});

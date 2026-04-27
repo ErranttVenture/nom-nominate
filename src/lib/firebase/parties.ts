@@ -4,6 +4,7 @@ import { COLLECTIONS } from './config';
 import { searchVenues } from '@/lib/api/places';
 import { geocodeZipCode } from '@/lib/api/geocoding';
 import { MILES_TO_METERS } from '@/constants';
+import { allocatePartyCode, resolveCodeToPartyId } from './shortCode';
 import type { Party, PartyMember, Venue } from '@/types';
 
 /** Strip keys with undefined values — Firestore rejects undefined. */
@@ -80,8 +81,10 @@ export async function createParty(input: CreatePartyInput): Promise<string> {
   // Geocode zip code to lat/lng
   const { lat, lng } = await geocodeZipCode(zipCode);
 
-  // Create party document
+  // Create party document + allocate short code in parallel
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc();
+  const joinCode = await allocatePartyCode(partyRef.id);
+
   const partyData: Record<string, any> = {
     id: partyRef.id,
     name,
@@ -93,6 +96,7 @@ export async function createParty(input: CreatePartyInput): Promise<string> {
     creatorId,
     memberIds: [creatorId],
     expectedMembers,
+    joinCode,
     venuesFetched: 0,
     venuesExhausted: false,
     completedShifts: 0,
@@ -131,7 +135,7 @@ export async function joinParty(partyId: string): Promise<void> {
   const partyRef = firestore().collection(COLLECTIONS.PARTIES).doc(partyId);
   const partyDoc = await partyRef.get();
 
-  if (!partyDoc.exists) throw new Error('Party not found.');
+  if (!partyDoc.exists()) throw new Error('Party not found.');
 
   const party = partyDoc.data() as Party;
 
@@ -152,6 +156,19 @@ export async function joinParty(partyId: string): Promise<void> {
     status: 'joined',
     swipeCount: 0,
   });
+}
+
+/**
+ * Join a Party using its 5-char short code. Returns the party ID.
+ * Throws if the code is invalid or the party no longer exists.
+ */
+export async function joinPartyByCode(rawCode: string): Promise<string> {
+  const partyId = await resolveCodeToPartyId(rawCode);
+  if (!partyId) {
+    throw new Error("That code doesn't look right — double-check with your host.");
+  }
+  await joinParty(partyId);
+  return partyId;
 }
 
 /**
@@ -354,7 +371,7 @@ export async function getParty(partyId: string): Promise<Party | null> {
     .doc(partyId)
     .get();
 
-  return doc.exists ? (doc.data() as Party) : null;
+  return doc.exists() ? (doc.data() as Party) : null;
 }
 
 /**
@@ -420,7 +437,7 @@ export function onPartySnapshot(
     .doc(partyId)
     .onSnapshot(
       (doc) => {
-        if (doc.exists) {
+        if (doc.exists()) {
           callback(doc.data() as Party);
         } else {
           callback(null);

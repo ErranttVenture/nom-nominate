@@ -1,17 +1,29 @@
+/**
+ * PartyListCard — row in the Home list.
+ *
+ * Visual: paper surface with ChunkyShadow, Sticker-style status chip,
+ * marker-set party name and hand subtitle.
+ */
+
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { COLORS } from '@/constants';
+import { Pressable, View, StyleProp, ViewStyle } from 'react-native';
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { COLOR, RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { Sticker } from '@/components/nom';
 import type { Party } from '@/types';
 
 interface PartyListCardProps {
   party: Party;
   onPress: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
-export function PartyListCard({ party, onPress }: PartyListCardProps) {
+export function PartyListCard({ party, onPress, style }: PartyListCardProps) {
+  const theme = useTheme();
   const memberCount = party.memberIds.length;
   const statusLabel = getStatusLabel(party);
-  const statusStyle = getStatusStyle(party);
+  const statusColor = getStatusColor(party, theme);
 
   const dateStr = party.date
     ? new Date(party.date).toLocaleDateString('en-US', {
@@ -21,78 +33,109 @@ export function PartyListCard({ party, onPress }: PartyListCardProps) {
     : undefined;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.name}>{party.name}</Text>
-      <Text style={styles.meta}>
-        {memberCount} member{memberCount !== 1 ? 's' : ''} · {party.zipCode} · {party.radiusMiles} mi
-        {dateStr ? ` · ${dateStr}` : ''}
-      </Text>
-      <View style={[styles.badge, statusStyle.badge]}>
-        <Text style={[styles.badgeText, statusStyle.text]}>{statusLabel}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[{ marginBottom: SPACE[3] }, style]}
+      accessibilityRole="button"
+      accessibilityLabel={`${party.name} — ${statusLabel}`}
+    >
+      {/* Shadow */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 3,
+          left: 3,
+          right: -3,
+          bottom: -3,
+          backgroundColor: theme.borderStrong,
+          borderRadius: RADIUS.lg,
+        }}
+      />
+      <View
+        style={{
+          padding: SPACE[4],
+          backgroundColor: theme.surface,
+          borderWidth: STROKE.std,
+          borderColor: theme.borderStrong,
+          borderRadius: RADIUS.lg,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: SPACE[2],
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <NomText variant="displayMd" color={theme.text} numberOfLines={1}>
+              {party.name}
+            </NomText>
+            <NomText
+              variant="bodyMd"
+              soft
+              style={{ marginTop: 2 }}
+              numberOfLines={1}
+            >
+              {memberCount} member{memberCount !== 1 ? 's' : ''} ·{' '}
+              {party.zipCode} · {party.radiusMiles}mi
+              {dateStr ? ` · ${dateStr}` : ''}
+            </NomText>
+          </View>
+          {party.joinCode && (
+            <View style={{ alignItems: 'flex-end' }}>
+              <NomText variant="monoSm" faint uppercase>
+                CODE
+              </NomText>
+              <NomText variant="headingLg" color={theme.action}>
+                {party.joinCode}
+              </NomText>
+            </View>
+          )}
+        </View>
+        <View style={{ marginTop: SPACE[2], alignSelf: 'flex-start' }}>
+          <Sticker
+            color={statusColor}
+            textColor={COLOR.neutral.ink}
+            rotation={-2}
+            paddingX={10}
+            paddingY={2}
+            variant="headingMd"
+          >
+            {statusLabel}
+          </Sticker>
+        </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 function getStatusLabel(party: Party): string {
   switch (party.status) {
     case 'lobby':
-      return 'Waiting for members';
+      return 'waiting';
     case 'swiping':
-      return 'Swiping in progress';
+      return 'swiping';
     case 'nominated':
-      return `✓ Nominated`;
+      return '✓ NOMINATED';
     case 'results':
-      return 'Results available';
+      return 'results in';
     default:
       return party.status;
   }
 }
 
-function getStatusStyle(party: Party) {
-  if (party.status === 'nominated') {
-    return {
-      badge: { backgroundColor: 'rgba(46,204,113,0.12)' },
-      text: { color: COLORS.success },
-    };
+function getStatusColor(party: Party, theme: ReturnType<typeof useTheme>) {
+  switch (party.status) {
+    case 'nominated':
+      return theme.match;
+    case 'swiping':
+      return theme.action;
+    case 'results':
+      return theme.warn;
+    default:
+      return theme.surfaceAlt;
   }
-  return {
-    badge: { backgroundColor: 'rgba(255,107,53,0.12)' },
-    text: { color: COLORS.primary },
-  };
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  name: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  meta: {
-    fontSize: 13,
-    color: COLORS.textLight,
-    marginTop: 4,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-});

@@ -15,10 +15,31 @@
       "distribution": "internal",
       "ios": {
         "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nom-nominate.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "nom-nominate",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "nom-nominate.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "964967620859",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:964967620859:web:8e571943838f956884505e",
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nom-nominate.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "nom-nominate",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "nom-nominate.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "964967620859",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:964967620859:web:8e571943838f956884505e",
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q"
+      }
     }
   },
   "submit": {

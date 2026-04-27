@@ -1,32 +1,42 @@
+/**
+ * Solo Browse — same CardStack as party swipe, but for a single user.
+ * Favorites pile up locally until they hit /solo/results.
+ */
+
 import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
-  Dimensions,
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { COLORS, PARTY } from '@/constants';
 import { CardStack } from '@/components/cards/CardStack';
 import { usePartyStore } from '@/stores/partyStore';
 import { geocodeZipCode } from '@/lib/api/geocoding';
 import { searchVenues } from '@/lib/api/places';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import { IconButton, NomButton, Sticker } from '@/components/nom';
 
 export default function SoloBrowseScreen() {
-  const { zipCode, radius } = useLocalSearchParams<{ zipCode: string; radius: string }>();
+  const { zipCode, radius } = useLocalSearchParams<{
+    zipCode: string;
+    radius: string;
+  }>();
   const router = useRouter();
+  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [currentRadiusMiles, setCurrentRadiusMiles] = useState(parseInt(radius || '10', 10));
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
+  const [currentRadiusMiles, setCurrentRadiusMiles] = useState(
+    parseInt(radius || '10', 10)
+  );
 
   const { venues, currentVenueIndex, swipeCount, setVenues } = usePartyStore();
   const incrementSwipeCount = usePartyStore((s) => s.incrementSwipeCount);
@@ -36,8 +46,6 @@ export default function SoloBrowseScreen() {
   const clearSoloFavorites = usePartyStore((s) => s.clearSoloFavorites);
 
   useEffect(() => {
-    // Clear previous solo favorites and reset party-specific state
-    // to prevent stale party data from polluting solo browse
     clearSoloFavorites();
     usePartyStore.setState({
       currentParty: null,
@@ -61,7 +69,10 @@ export default function SoloBrowseScreen() {
         usePartyStore.setState({ currentVenueIndex: 0, swipeCount: 0 });
       } catch (error) {
         console.error('Failed to load venues:', error);
-        Alert.alert('Error', 'Could not load restaurants for this area. Please try again.');
+        Alert.alert(
+          'Error',
+          'Could not load restaurants for this area. Please try again.'
+        );
       } finally {
         setLoading(false);
       }
@@ -72,7 +83,6 @@ export default function SoloBrowseScreen() {
   const handleLoadMore = useCallback(async () => {
     if (!coords || loadingMore) return;
 
-    // Expand radius by 5 miles to find new venues
     const newRadius = currentRadiusMiles + 5;
     setLoadingMore(true);
 
@@ -83,22 +93,19 @@ export default function SoloBrowseScreen() {
         radiusMeters: newRadius * 1609.34,
       });
 
-      // Filter out venues we've already seen
       const newVenues = results.filter((v) => !seenIds.has(v.id));
 
       if (newVenues.length === 0) {
         Alert.alert(
           'No New Restaurants',
-          `No additional restaurants found within ${newRadius} miles. Try a different area!`,
+          `No additional restaurants found within ${newRadius} miles. Try a different area!`
         );
       } else {
-        // Add new IDs to seen set
         setSeenIds((prev) => {
           const updated = new Set(prev);
           newVenues.forEach((v) => updated.add(v.id));
           return updated;
         });
-        // Append new venues and reset index to continue swiping
         setVenues(newVenues);
         usePartyStore.setState({ currentVenueIndex: 0, swipeCount: 0 });
         setCurrentRadiusMiles(newRadius);
@@ -119,13 +126,17 @@ export default function SoloBrowseScreen() {
 
   const handleSwipeRight = useCallback(() => {
     const venue = venues[currentVenueIndex];
-    if (venue) {
-      addSoloFavorite(venue);
-    }
+    if (venue) addSoloFavorite(venue);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     nextVenueAction();
     incrementSwipeCount();
-  }, [venues, currentVenueIndex, nextVenueAction, incrementSwipeCount, addSoloFavorite]);
+  }, [
+    venues,
+    currentVenueIndex,
+    nextVenueAction,
+    incrementSwipeCount,
+    addSoloFavorite,
+  ]);
 
   const handleShowResults = useCallback(() => {
     router.push('/solo/results');
@@ -137,30 +148,81 @@ export default function SoloBrowseScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Finding restaurants...</Text>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme.bg,
+        }}
+      >
+        <ActivityIndicator size="large" color={theme.action} />
+        <NomText variant="bodyMd" soft style={{ marginTop: SPACE[3] }}>
+          finding restaurants...
+        </NomText>
       </View>
     );
   }
 
+  const progress =
+    venues.length > 0 ? Math.min(1, swipeCount / venues.length) : 0;
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      edges={['top']}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => router.replace('/')}>
-          <Text style={styles.headerBtnText}>🏠</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Solo Browse</Text>
-        <View style={styles.counter}>
-          <Text style={styles.counterText}>
-            {swipeCount} / {venues.length}
-          </Text>
-        </View>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: SPACE[3],
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[2],
+        }}
+      >
+        <IconButton name="back" size={44} onPress={() => router.back()} />
+        <NomText variant="displayMd" style={{ flex: 1 }}>
+          solo browse
+        </NomText>
+        <NomText variant="monoSm" soft uppercase>
+          {swipeCount} / {venues.length}
+        </NomText>
+      </View>
+
+      {/* Progress bar */}
+      <View
+        style={{
+          marginHorizontal: SPACE[5],
+          height: 8,
+          borderWidth: STROKE.std,
+          borderColor: theme.borderStrong,
+          borderRadius: RADIUS.sm,
+          backgroundColor: theme.surface,
+          overflow: 'hidden',
+          marginBottom: SPACE[3],
+        }}
+      >
+        <View
+          style={{
+            width: `${progress * 100}%`,
+            height: '100%',
+            backgroundColor: theme.action,
+          }}
+        />
       </View>
 
       {/* Card Stack */}
-      <View style={styles.cardContainer}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: SPACE[4],
+          overflow: 'hidden',
+        }}
+      >
         {hasMoreCards ? (
           <CardStack
             currentVenue={currentVenue}
@@ -169,143 +231,105 @@ export default function SoloBrowseScreen() {
             onSwipeRight={handleSwipeRight}
           />
         ) : (
-          <View style={styles.noMoreCards}>
-            <Text style={styles.noMoreEmoji}>🎉</Text>
-            <Text style={styles.noMoreTitle}>Batch complete!</Text>
-            <Text style={styles.noMoreSubtitle}>
-              You liked {soloFavorites.length} restaurant{soloFavorites.length !== 1 ? 's' : ''} so far. Want to see more nearby?
-            </Text>
-
-            {/* Show Results Button (primary) */}
-            <TouchableOpacity
-              style={styles.showResultsBtn}
-              onPress={handleShowResults}
-              activeOpacity={0.7}
+          <View style={{ alignItems: 'center', padding: SPACE[8] }}>
+            <Sticker
+              color={theme.warn}
+              rotation={-4}
+              paddingX={16}
+              paddingY={4}
+              variant="displayLg"
             >
-              <Text style={styles.showResultsBtnText}>
-                Show me results ({soloFavorites.length})
-              </Text>
-            </TouchableOpacity>
-
-            {/* Load More Button */}
-            <TouchableOpacity
-              style={styles.loadMoreBtn}
-              onPress={handleLoadMore}
-              disabled={loadingMore}
-              activeOpacity={0.7}
+              batch done!
+            </Sticker>
+            <NomText
+              variant="displayXL"
+              center
+              style={{ marginTop: SPACE[5] }}
             >
-              {loadingMore ? (
-                <ActivityIndicator color={COLORS.primary} size="small" />
-              ) : (
-                <Text style={styles.loadMoreBtnText}>
-                  Find More Restaurants ({currentRadiusMiles + 5} mi)
-                </Text>
-              )}
-            </TouchableOpacity>
+              {soloFavorites.length} liked
+            </NomText>
+            <NomText
+              variant="bodyLg"
+              soft
+              center
+              style={{ marginTop: SPACE[2], maxWidth: 280 }}
+            >
+              See what you saved or dig for more within{' '}
+              {currentRadiusMiles + 5} mi.
+            </NomText>
+
+            <View style={{ width: '100%', marginTop: SPACE[6] }}>
+              <NomButton
+                label={`SHOW RESULTS (${soloFavorites.length})`}
+                variant="primary"
+                stretch
+                onPress={handleShowResults}
+              />
+            </View>
+            <View style={{ width: '100%', marginTop: SPACE[3] }}>
+              <NomButton
+                label={`FIND MORE (${currentRadiusMiles + 5} MI)`}
+                variant="secondary"
+                stretch
+                loading={loadingMore}
+                onPress={handleLoadMore}
+              />
+            </View>
           </View>
         )}
       </View>
 
-      {/* Swipe Buttons */}
+      {/* Swipe buttons */}
       {hasMoreCards && (
-        <View style={styles.swipeButtons}>
-          <TouchableOpacity
-            style={[styles.swipeBtn, styles.nopeBtn]}
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: SPACE[6],
+            paddingVertical: SPACE[4],
+            paddingBottom: SPACE[6],
+          }}
+        >
+          <IconButton
+            name="close"
+            size={64}
+            variant="destruct"
             onPress={handleSwipeLeft}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.nopeBtnText}>✕</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.swipeBtn, styles.likeBtn]}
+          />
+          <IconButton
+            name="heart"
+            size={64}
+            variant="primary"
             onPress={handleSwipeRight}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.likeBtnText}>♥</Text>
-          </TouchableOpacity>
+          />
         </View>
       )}
 
-      {/* Favorites count */}
+      {/* Favorites bar */}
       {hasMoreCards && soloFavorites.length > 0 && (
-        <View style={styles.favoritesBar}>
-          <Text style={styles.favoritesText}>♥ {soloFavorites.length} favorites</Text>
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            bottom: 128,
+            alignSelf: 'center',
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+          }}
+        >
+          <Sticker
+            color={theme.match}
+            rotation={-3}
+            paddingX={14}
+            paddingY={2}
+            variant="headingMd"
+          >
+            {`♥ ${soloFavorites.length} saved`}
+          </Sticker>
         </View>
       )}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  loadingContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  loadingText: { marginTop: 12, fontSize: 15, color: COLORS.textLight },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 24, paddingBottom: 8, gap: 12,
-  },
-  headerBtn: {
-    width: 36, height: 36, borderRadius: 12,
-    backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  headerBtnText: { fontSize: 16 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, flex: 1 },
-  counter: {
-    backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 10,
-  },
-  counterText: { fontSize: 13, fontWeight: '600', color: COLORS.textLight },
-  cardContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 16, overflow: 'hidden',
-  },
-  swipeButtons: {
-    flexDirection: 'row', justifyContent: 'center', gap: 40,
-    paddingVertical: 16, paddingBottom: 40, zIndex: 10,
-  },
-  swipeBtn: {
-    width: 64, height: 64, borderRadius: 32,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 5,
-  },
-  nopeBtn: { backgroundColor: '#fff' },
-  nopeBtnText: { fontSize: 28, color: COLORS.danger },
-  likeBtn: { backgroundColor: '#fff' },
-  likeBtnText: { fontSize: 28, color: COLORS.success },
-  noMoreCards: { alignItems: 'center', padding: 40 },
-  noMoreEmoji: { fontSize: 48, marginBottom: 12 },
-  noMoreTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  noMoreSubtitle: {
-    fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22,
-    marginBottom: 24,
-  },
-  showResultsBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 16, width: '100%', alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
-  },
-  showResultsBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  loadMoreBtn: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 16, width: '100%', alignItems: 'center',
-    borderWidth: 2, borderColor: COLORS.primary,
-  },
-  loadMoreBtnText: { color: COLORS.primary, fontSize: 17, fontWeight: '700' },
-  favoritesBar: {
-    position: 'absolute', bottom: 110, alignSelf: 'center',
-    backgroundColor: COLORS.success, paddingHorizontal: 16, paddingVertical: 8,
-    borderRadius: 14,
-  },
-  favoritesText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-});

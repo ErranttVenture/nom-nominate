@@ -39,20 +39,26 @@ cd ..
    - `GoogleService-Info.plist` → project root
    - `google-services.json` → project root
 
-6. Update `src/lib/firebase/config.ts` with your project values
+6. Environment variables handle the Firebase config automatically (see Step 3)
 
-## Step 3: Google Places API
+## Step 3: Environment Variables & Google Places API
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable these APIs:
+1. Copy the environment template:
+   ```bash
+   cp .env.example .env
+   ```
+2. Fill in your `.env` with real values:
+   - Firebase values from Firebase Console > Project Settings > General > Your apps
+   - Google Places API key from Google Cloud Console
+3. Go to [Google Cloud Console](https://console.cloud.google.com/) and enable:
    - **Places API (New)**
    - **Geocoding API**
-3. Create an API key with these restrictions:
+4. Create an API key with these restrictions:
    - Application restriction: iOS/Android apps
    - API restriction: Places API, Geocoding API
-4. Update API keys in:
-   - `src/lib/api/places.ts`
-   - `src/lib/api/geocoding.ts`
+5. Add the API key as `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` in your `.env` file
+
+> **Note:** Never commit `.env` to git. It is already in `.gitignore`.
 
 ## Step 4: Deploy Firebase
 
@@ -112,12 +118,17 @@ if (__DEV__) {
 
 ## Environment Variables
 
-For production, consider using `expo-constants` or a `.env` file:
+All API keys are loaded from a `.env` file via `process.env.EXPO_PUBLIC_*`. See `.env.example` for the full list:
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_PLACES_API_KEY` | Google Places API key |
-| `GOOGLE_GEOCODING_API_KEY` | Google Geocoding API key |
+| `EXPO_PUBLIC_FIREBASE_API_KEY` | Firebase web API key |
+| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase auth domain |
+| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
+| `EXPO_PUBLIC_FIREBASE_APP_ID` | Firebase app ID |
+| `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` | Google Places & Geocoding API key |
 
 ## Project Structure
 

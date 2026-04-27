@@ -41,5 +41,13 @@ service cloud.firestore {
     match /offers/{offerId} {
       allow read: if request.auth != null;
     }
+
+    // Party codes (short-code → partyId lookup). Auth users can read any
+    // code (so a guest can resolve it before joining) and create codes
+    // (party creation allocates one). Updates/deletes disallowed.
+    match /partyCodes/{code} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
   }
 }

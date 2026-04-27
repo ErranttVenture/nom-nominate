@@ -1,19 +1,39 @@
+/**
+ * History — scrollable list of past nominations.
+ */
+
 import React from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants';
 import { usePartyStore } from '@/stores/partyStore';
 import { PartyListCard } from '@/components/party/PartyListCard';
+import { NomText } from '@/theme/NomText';
+import { useTheme } from '@/theme/ThemeContext';
+import { SPACE } from '@/theme/tokens';
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const pastParties = usePartyStore((s) => s.pastParties);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>History</Text>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      edges={['top']}
+    >
+      <View
+        style={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[4],
+        }}
+      >
+        <NomText variant="displayXL" color={theme.text}>
+          history
+        </NomText>
+        <NomText variant="bodyMd" soft style={{ marginTop: SPACE[1] }}>
+          past nominations.
+        </NomText>
       </View>
 
       <FlatList
@@ -23,33 +43,34 @@ export default function HistoryScreen() {
           <PartyListCard
             party={item}
             onPress={() =>
-              router.push({ pathname: '/party/results', params: { partyId: item.id } })
+              router.push({
+                pathname: '/party/results',
+                params: { partyId: item.id },
+              })
             }
           />
         )}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[6],
+        }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>📊</Text>
-            <Text style={styles.emptyTitle}>No history yet</Text>
-            <Text style={styles.emptySubtitle}>
+          <View style={{ alignItems: 'center', paddingTop: SPACE[10] }}>
+            <NomText variant="displayLg" center>
+              no history yet
+            </NomText>
+            <NomText
+              variant="bodyMd"
+              soft
+              center
+              style={{ marginTop: SPACE[2], maxWidth: 260 }}
+            >
               Your completed nominations will appear here.
-            </Text>
+            </NomText>
           </View>
         }
       />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 24, paddingBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  listContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  emptyState: { alignItems: 'center', paddingTop: 60 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  emptySubtitle: { fontSize: 15, color: COLORS.textLight, textAlign: 'center', lineHeight: 22 },
-});

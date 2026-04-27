@@ -1,28 +1,30 @@
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  RefreshControl,
-} from 'react-native';
+/**
+ * Home — party list + primary actions.
+ *
+ * Brand mark top-left, user avatar top-right. Primary CTA is "NEW PARTY"
+ * (orange chunky). Secondary is "BROWSE SOLO" (ghost).
+ */
+
+import React from 'react';
+import { View, FlatList, RefreshControl, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants';
 import { useAuthStore } from '@/stores/authStore';
 import { usePartyStore } from '@/stores/partyStore';
 import { useParties } from '@/hooks/useParties';
 import { PartyListCard } from '@/components/party/PartyListCard';
+import { useTheme } from '@/theme/ThemeContext';
+import { NomText } from '@/theme/NomText';
+import { SPACE } from '@/theme/tokens';
+import { Splat, NomButton, Avatar } from '@/components/nom';
 import type { Party } from '@/types';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const user = useAuthStore((s) => s.user);
   const { activeParties, pastParties } = usePartyStore();
   const { loading, refresh } = useParties();
-
-  const initials = user?.displayName?.charAt(0).toUpperCase() ?? '?';
 
   const handlePartyPress = (party: Party) => {
     if (party.status === 'lobby') {
@@ -38,29 +40,38 @@ export default function HomeScreen() {
 
   const renderHeader = () => (
     <View>
-      {/* New Party Button */}
-      <TouchableOpacity
-        style={styles.newPartyBtn}
-        onPress={() => router.push('/party/create')}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.newPartyPlus}>+</Text>
-        <Text style={styles.newPartyText}>New Party</Text>
-      </TouchableOpacity>
+      {/* Primary CTA */}
+      <View style={{ marginBottom: SPACE[3] }}>
+        <NomButton
+          label="NEW PARTY"
+          variant="primary"
+          leadIcon="plus"
+          stretch
+          onPress={() => router.push('/party/create')}
+        />
+      </View>
 
-      {/* Solo Browse Button */}
-      <TouchableOpacity
-        style={styles.soloBrowseBtn}
-        onPress={() => router.push('/solo')}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.soloBrowseText}>Browse Solo</Text>
-      </TouchableOpacity>
+      {/* Secondary */}
+      <View style={{ marginBottom: SPACE[6] }}>
+        <NomButton
+          label="BROWSE SOLO"
+          variant="secondary"
+          leadIcon="forkknife"
+          stretch
+          onPress={() => router.push('/solo')}
+        />
+      </View>
 
-      {/* Active Parties */}
       {activeParties.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>ACTIVE</Text>
+          <NomText
+            variant="monoSm"
+            soft
+            uppercase
+            style={{ marginBottom: SPACE[3], letterSpacing: 1.5 }}
+          >
+            ACTIVE
+          </NomText>
           {activeParties.map((party) => (
             <PartyListCard
               key={party.id}
@@ -71,21 +82,67 @@ export default function HomeScreen() {
         </>
       )}
 
-      {/* Past Parties */}
       {pastParties.length > 0 && (
-        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>PAST NOMINATIONS</Text>
+        <NomText
+          variant="monoSm"
+          soft
+          uppercase
+          style={{ marginTop: SPACE[5], marginBottom: SPACE[3], letterSpacing: 1.5 }}
+        >
+          PAST NOMINATIONS
+        </NomText>
       )}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView
+      edges={['top']}
+      style={{ flex: 1, backgroundColor: theme.bg }}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Parties</Text>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[3],
+        }}
+      >
+        {/* Mini lockup */}
+        <View style={{ width: 72, height: 44 }}>
+          <Splat
+            size={60}
+            color={theme.action}
+            seed={1}
+            rotation={-4}
+            style={{ position: 'absolute', top: -6, left: 0 }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 10,
+              transform: [{ rotate: '-2deg' }],
+            }}
+          >
+            <NomText
+              variant="displayMd"
+              color={theme.text}
+              style={{ fontSize: 26, lineHeight: 28 }}
+            >
+              nom
+            </NomText>
+          </View>
         </View>
+        <Pressable onPress={() => {}}>
+          <Avatar
+            name={user?.displayName ?? '?'}
+            size={40}
+            rotation={-4}
+          />
+        </Pressable>
       </View>
 
       <FlatList
@@ -93,24 +150,44 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         renderItem={({ item }) => (
-          <PartyListCard
-            party={item}
-            onPress={() => handlePartyPress(item)}
-          />
+          <PartyListCard party={item} onPress={() => handlePartyPress(item)} />
         )}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={{
+          paddingHorizontal: SPACE[5],
+          paddingBottom: SPACE[6],
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} tintColor={COLORS.primary} />
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={refresh}
+            tintColor={theme.action}
+          />
         }
         ListEmptyComponent={
           pastParties.length === 0 && activeParties.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.emptyTitle}>No parties yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Create your first party and invite friends to start swiping!
-              </Text>
+            <View
+              style={{
+                alignItems: 'center',
+                padding: SPACE[8],
+                borderWidth: 1.5,
+                borderStyle: 'dashed',
+                borderColor: theme.borderStrong,
+                borderRadius: 14,
+                backgroundColor: theme.surface,
+              }}
+            >
+              <NomText variant="displayLg" center>
+                no parties yet
+              </NomText>
+              <NomText
+                variant="bodyMd"
+                soft
+                center
+                style={{ marginTop: SPACE[2], maxWidth: 260 }}
+              >
+                start one or paste a friend's code
+              </NomText>
             </View>
           ) : null
         }
@@ -118,110 +195,3 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  listContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  newPartyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 20,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: COLORS.primary,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,107,53,0.05)',
-    marginBottom: 28,
-  },
-  newPartyPlus: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  newPartyText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  soloBrowseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 28,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  soloBrowseText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: COLORS.textLight,
-    marginBottom: 12,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 40,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-});

@@ -8,55 +8,60 @@ import { COLLECTIONS } from './config';
  */
 export interface PhoneVerificationResult {
   verificationId: string;
-  /** If true, Android auto-verified — user is already signed in. */
-  autoVerified?: boolean;
-  /** If auto-verified, includes whether user is new. */
+  /**
+   * On Android: true if auto-verify completed within the auto-verify
+   * window — the user is already signed in. False after AUTO_VERIFY_TIMEOUT
+   * (UI should now show manual code entry).
+   * On iOS: always false (iOS has no auto-verify).
+   */
+  autoVerified: boolean;
+  /** Set when autoVerified is true: whether the signed-in user is new. */
   isNewUser?: boolean;
 }
 
-/**
- * Callback fired when Android auto-verifies the SMS code in the background.
- * This happens AFTER the initial Promise resolves with CODE_SENT.
- */
-export type AutoVerifyCallback = (result: {
-  isNewUser: boolean;
-}) => void;
+/** Auto-verify timeout in seconds — kept short so UX falls through to
+ *  manual entry quickly when the SMS Retriever doesn't fire. */
+const AUTO_VERIFY_TIMEOUT_SECONDS = 10;
 
 /**
  * Send SMS verification code to phone number.
  *
- * On Android, uses verifyPhoneNumber for explicit control over the
- * verification lifecycle. The Promise resolves once CODE_SENT fires.
- * If Android later auto-verifies, the onAutoVerify callback fires separately.
+ * On Android, uses verifyPhoneNumber and waits the full auto-verify
+ * window before resolving. The Promise resolves with autoVerified=true
+ * if AUTO_VERIFIED fires (silent sign-in), or autoVerified=false on
+ * AUTO_VERIFY_TIMEOUT (UI should switch to manual code entry). This
+ * keeps the user on the phone-entry screen during the wait so there
+ * is no flash to a verify screen if auto-verify ultimately succeeds.
  *
- * On iOS, uses signInWithPhoneNumber.
+ * On iOS, uses signInWithPhoneNumber (no auto-verify).
  */
 export function sendVerificationCode(
   phoneNumber: string,
-  onAutoVerify?: AutoVerifyCallback,
 ): Promise<PhoneVerificationResult> {
   return new Promise((resolve, reject) => {
     if (Platform.OS === 'android') {
       let resolved = false;
+      let capturedVerificationId = '';
+      let codeSent = false;
 
-      auth().verifyPhoneNumber(phoneNumber)
+      auth().verifyPhoneNumber(phoneNumber, AUTO_VERIFY_TIMEOUT_SECONDS)
         .on('state_changed', async (phoneAuthSnapshot) => {
           console.log('[PhoneAuth] State:', phoneAuthSnapshot.state);
           console.log('[PhoneAuth] verificationId:', phoneAuthSnapshot.verificationId?.substring(0, 15));
 
           switch (phoneAuthSnapshot.state) {
             case auth.PhoneAuthState.CODE_SENT:
-              console.log('[PhoneAuth] Code sent successfully');
-              if (!resolved) {
-                resolved = true;
-                resolve({
-                  verificationId: phoneAuthSnapshot.verificationId,
-                });
-              }
+              console.log('[PhoneAuth] Code sent successfully — waiting for auto-verify or timeout');
+              codeSent = true;
+              capturedVerificationId = phoneAuthSnapshot.verificationId;
+              // Intentionally do NOT resolve here — keep listening so
+              // the UI stays on the phone-entry screen until either
+              // AUTO_VERIFIED or AUTO_VERIFY_TIMEOUT fires.
               break;
 
             case auth.PhoneAuthState.AUTO_VERIFIED:
               console.log('[PhoneAuth] Auto-verified on Android');
+              if (resolved) break;
               try {
                 const credential = auth.PhoneAuthProvider.credential(
                   phoneAuthSnapshot.verificationId,
@@ -65,55 +70,68 @@ export function sendVerificationCode(
                 const userCredential = await auth().signInWithCredential(credential);
                 const newUserResult = await ensureUserProfile(userCredential.user);
 
-                if (!resolved) {
-                  // AUTO_VERIFIED fired before CODE_SENT (rare but possible)
-                  resolved = true;
-                  resolve({
-                    verificationId: phoneAuthSnapshot.verificationId,
-                    autoVerified: true,
-                    isNewUser: newUserResult.isNewUser,
-                  });
-                } else {
-                  // AUTO_VERIFIED fired AFTER CODE_SENT already resolved.
-                  // The UI is on the code entry screen — notify it via callback.
-                  console.log('[PhoneAuth] Auto-verify after CODE_SENT, calling callback');
-                  onAutoVerify?.(newUserResult);
-                }
+                resolved = true;
+                resolve({
+                  verificationId: phoneAuthSnapshot.verificationId,
+                  autoVerified: true,
+                  isNewUser: newUserResult.isNewUser,
+                });
               } catch (err: any) {
                 console.error('[PhoneAuth] Auto-verify sign-in error:', err);
-                // Don't reject — the user can still enter the code manually
-                // unless the session is now invalid, which we can't prevent
+                // Auto sign-in failed but we still have the verificationId.
+                // Fall back to manual entry by resolving with autoVerified=false.
+                if (!resolved) {
+                  resolved = true;
+                  resolve({
+                    verificationId:
+                      capturedVerificationId || phoneAuthSnapshot.verificationId,
+                    autoVerified: false,
+                  });
+                }
               }
               break;
 
             case auth.PhoneAuthState.AUTO_VERIFY_TIMEOUT:
               console.log('[PhoneAuth] Auto-verify timeout, manual entry required');
-              // CODE_SENT should have already resolved the Promise.
-              // If somehow it didn't (very rare), resolve now.
               if (!resolved) {
                 resolved = true;
                 resolve({
-                  verificationId: phoneAuthSnapshot.verificationId,
+                  verificationId:
+                    capturedVerificationId || phoneAuthSnapshot.verificationId,
+                  autoVerified: false,
                 });
               }
               break;
 
             case auth.PhoneAuthState.ERROR:
               console.error('[PhoneAuth] Error:', phoneAuthSnapshot.error);
-              if (!resolved) {
+              if (resolved) break;
+              if (codeSent && capturedVerificationId) {
+                // Error happened after CODE_SENT — let the user try
+                // manual entry rather than blocking them.
                 resolved = true;
-                reject(phoneAuthSnapshot.error || new Error('Phone verification failed'));
+                resolve({
+                  verificationId: capturedVerificationId,
+                  autoVerified: false,
+                });
+              } else {
+                resolved = true;
+                reject(
+                  phoneAuthSnapshot.error || new Error('Phone verification failed')
+                );
               }
               break;
           }
         });
     } else {
-      // iOS: use signInWithPhoneNumber
+      // iOS: signInWithPhoneNumber. No auto-verify — UI must show the
+      // manual code entry screen.
       auth()
         .signInWithPhoneNumber(phoneNumber)
         .then((confirmationResult) => {
           resolve({
             verificationId: (confirmationResult as any).verificationId || '',
+            autoVerified: false,
           });
         })
         .catch(reject);
@@ -162,7 +180,7 @@ async function ensureUserProfile(
     .doc(user.uid)
     .get();
 
-  if (!userDoc.exists) {
+  if (!userDoc.exists()) {
     await firestore().collection(COLLECTIONS.USERS).doc(user.uid).set({
       id: user.uid,
       phone: user.phoneNumber ?? '',
@@ -221,5 +239,5 @@ export async function getCurrentUserProfile() {
     .doc(user.uid)
     .get();
 
-  return doc.exists ? (doc.data() ?? null) : null;
+  return doc.exists() ? (doc.data() ?? null) : null;
 }

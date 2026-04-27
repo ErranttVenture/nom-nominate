@@ -176,8 +176,8 @@ app-scaffold/
 | Auth Domain | `nom-nominate.firebaseapp.com` |
 | Storage Bucket | `nom-nominate.firebasestorage.app` |
 | Hosting URL | `https://nom-nominate.web.app` |
-| Web App ID | `1:964967620859:web:8e571943838f956884505e` |
-| Android App ID | `1:964967620859:android:83d445d8139eb61684505e` |
+| Web App ID | See `EXPO_PUBLIC_FIREBASE_APP_ID` in `.env` |
+| Android App ID | See `google-services.json` |
 
 ### Firestore Database Schema
 
@@ -267,7 +267,7 @@ COLLECTIONS.OFFERS = 'offers'
 ### Google Places API (New)
 
 - **Endpoint:** `https://places.googleapis.com/v1/places:searchNearby` (POST)
-- **API Key:** Uses the Firebase web API key (`AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q`) passed via `X-Goog-Api-Key` header
+- **API Key:** Uses `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` env var, passed via `X-Goog-Api-Key` header
 - **Included types:** `restaurant`, `bar`, `cafe`
 - **Max results per request:** 20
 - **Fields requested:** `id`, `displayName`, `primaryType`, `rating`, `priceLevel`, `photos`, `location`, `formattedAddress`, `currentOpeningHours`, `regularOpeningHours`
@@ -277,18 +277,20 @@ COLLECTIONS.OFFERS = 'offers'
 ### Google Geocoding API
 
 - **Endpoint:** `https://maps.googleapis.com/maps/api/geocode/json`
-- **API Key:** Same Firebase web API key
+- **API Key:** Same `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` env var
 - **Purpose:** Convert US zip codes to lat/lng coordinates for venue search center point
 - **Component restriction:** `country:US`
 - **Source file:** `src/lib/api/geocoding.ts`
 
 ### API Key Notes
 
-Both APIs use the same key: `AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q`. This key must have the following APIs enabled in Google Cloud Console:
+Both APIs use the same key, stored in the `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` environment variable. This key must have the following APIs enabled in Google Cloud Console:
 - Places API (New)
 - Geocoding API
 
-The Android API key (from `google-services.json`) is `AIzaSyAw3zihqkKYprp0YFSIbBOMIvsA0XY00uA` and is used by Firebase native SDKs on Android.
+The Android API key (from `google-services.json`) is separate and is used by Firebase native SDKs on Android.
+
+> **Setup:** Copy `.env.example` to `.env` and fill in your real API keys. See `.env.example` for all required variables.
 
 ---
 

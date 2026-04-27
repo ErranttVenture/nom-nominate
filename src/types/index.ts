@@ -24,6 +24,7 @@ export interface Party {
   venuesExhausted?: boolean; // True when no more Google results available
   completedShifts?: number; // Number of coordinate shifts tried (0-20)
   expectedMembers?: number; // 2-6 for exact count, 0 for "6+" non-unanimous mode
+  joinCode?: string; // 5-char short code (A-Z 0-9 minus I/O/0/1)
   createdAt: Date;
   updatedAt: Date;
 }

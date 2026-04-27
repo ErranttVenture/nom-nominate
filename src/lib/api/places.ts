@@ -1,6 +1,9 @@
 import type { Venue } from '@/types';
 
-const GOOGLE_PLACES_API_KEY = 'AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q';
+const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? '';
+if (!GOOGLE_PLACES_API_KEY) {
+  console.error('Missing EXPO_PUBLIC_GOOGLE_PLACES_API_KEY environment variable. Copy .env.example to .env and fill in your values.');
+}
 const BASE_URL = 'https://places.googleapis.com/v1/places:searchNearby';
 
 interface SearchVenuesParams {

@@ -1,27 +1,47 @@
+/**
+ * Party Lobby — "backstage" screen (design Variant B).
+ *
+ * Auth + join behavior is unchanged from the previous version:
+ *   - Deep-linked guests without auth get redirected to /auth with a
+ *     pendingPartyId stash, then returned here after sign-in.
+ *   - On mount we auto-join (idempotent) with exponential backoff retry.
+ *   - Party real-time state comes from `usePartyLobby`.
+ *
+ * Visually we match the locked "BACKSTAGE" hi-fi: halftone wash top,
+ * big ink join-code card, rotated sticker name tags, host line.
+ */
+
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
   Alert,
   Share,
   ActivityIndicator,
+  ScrollView,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '@/constants';
+import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/stores/authStore';
 import { usePartyLobby } from '@/hooks/usePartyLobby';
 import { PartyService } from '@/lib/services';
+import { useTheme } from '@/theme/ThemeContext';
+import { NomText } from '@/theme/NomText';
+import { COLOR, RADIUS, SPACE, STROKE } from '@/theme/tokens';
+import {
+  Splat,
+  Halftone,
+  Bolt,
+  NomButton,
+  Avatar,
+} from '@/components/nom';
 import type { PartyMember } from '@/types';
-
-const AVATAR_COLORS = ['#FF6B35', '#6c5ce7', '#00b894', '#fdcb6e', '#e17055', '#0984e3', '#00cec9', '#fd79a8'];
 
 export default function PartyLobbyScreen() {
   const { id: partyId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const theme = useTheme();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -31,55 +51,45 @@ export default function PartyLobbyScreen() {
   const [starting, setStarting] = useState(false);
   const joinAttempted = useRef(false);
 
-  // ── Auth guard ──────────────────────────────────────────────
-  // If the user arrived via deep link but isn't logged in yet,
-  // stash the party ID and redirect to auth.  After sign-in,
-  // index.tsx will pick up pendingPartyId and navigate back here.
+  // ── Auth guard ──
   useEffect(() => {
-    if (isLoading) return; // wait for auth to resolve
+    if (isLoading) return;
     if (!isAuthenticated) {
-      console.log('[PartyLobby] Not authenticated, stashing partyId and redirecting to auth');
       setPendingPartyId(partyId!);
       router.replace('/auth');
     }
   }, [isAuthenticated, isLoading]);
 
-  // ── Join-on-mount ───────────────────────────────────────────
-  // When the user lands on this screen (e.g. from a deep link),
-  // automatically join the party if they aren't already a member.
-  // joinParty() is idempotent so calling it twice is safe.
-  // Retries transient Firestore errors with exponential backoff.
+  // ── Auto-join ──
   useEffect(() => {
     if (!isAuthenticated || !partyId || joinAttempted.current) return;
     joinAttempted.current = true;
 
-    const TRANSIENT_CODES = ['firestore/unavailable', 'firestore/deadline-exceeded'];
+    const TRANSIENT_CODES = [
+      'firestore/unavailable',
+      'firestore/deadline-exceeded',
+    ];
     const MAX_RETRIES = 3;
 
     (async () => {
       setJoining(true);
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
-          console.log(`[PartyLobby] Auto-joining party: ${partyId}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
           await PartyService.joinParty(partyId);
-          console.log('[PartyLobby] Join successful');
           setJoining(false);
-          return; // success — exit
+          return;
         } catch (err: any) {
-          const isTransient = TRANSIENT_CODES.some((code) => err.message?.includes(code) || err.code === code);
-
+          const isTransient = TRANSIENT_CODES.some(
+            (code) => err.message?.includes(code) || err.code === code
+          );
           if (isTransient && attempt < MAX_RETRIES) {
-            const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-            console.warn(`[PartyLobby] Transient error, retrying in ${delay}ms...`, err.message);
-            await new Promise((r) => setTimeout(r, delay));
+            await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
             continue;
           }
-
-          // Non-transient or exhausted retries
-          console.error('[PartyLobby] Join failed:', err);
           Alert.alert(
             'Could not join party',
-            err.message || 'The party may no longer exist. Please ask the host for a new link.',
+            err.message ||
+              'The party may no longer exist. Please ask the host for a new link.',
             [{ text: 'OK', onPress: () => router.replace('/') }]
           );
           setJoining(false);
@@ -89,10 +99,8 @@ export default function PartyLobbyScreen() {
     })();
   }, [isAuthenticated, partyId]);
 
-  // ── Real-time lobby data ────────────────────────────────────
   const { party, members, loading, error } = usePartyLobby(partyId!);
 
-  // Show error and navigate back if party can't be loaded
   useEffect(() => {
     if (error) {
       Alert.alert('Error', error, [
@@ -101,216 +109,442 @@ export default function PartyLobbyScreen() {
     }
   }, [error]);
 
-  const handleInvite = async () => {
-    const link = `https://nom-nominate.web.app/party/${partyId}`;
-    try {
-      await Share.share({
-        message: `Join my Nom Nominate party "${party?.name}"! 🍽️\n\n${link}`,
-        url: link,
-      });
-    } catch (error) {
-      // User cancelled share
-    }
-  };
-
-  const handleStartSwiping = async () => {
-    setStarting(true);
-    try {
-      // Any member can start swiping — ensureSwipingStarted is idempotent
-      router.replace({ pathname: '/party/swipe', params: { partyId } });
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to start swiping.');
-    } finally {
-      setStarting(false);
-    }
-  };
-
-  // Redirect only if party is nominated (swiping stays on lobby so user can invite)
   useEffect(() => {
     if (party?.status === 'nominated') {
       router.replace({ pathname: '/party/success', params: { partyId } });
     }
   }, [party?.status]);
 
-  const isSwiping = party?.status === 'swiping';
+  const handleInvite = async () => {
+    const link = `https://nom-nominate.web.app/party/${partyId}`;
+    const code = party?.joinCode;
+    const message = code
+      ? `Join my Nom party — code: ${code}\n${link}`
+      : `Join my Nom Nominate party "${party?.name}"!\n\n${link}`;
+    try {
+      await Share.share({ message, url: link });
+    } catch {
+      // user cancelled
+    }
+  };
 
-  // ── Loading states ──────────────────────────────────────────
+  const handleCopyCode = async () => {
+    if (!party?.joinCode) return;
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    await Share.share({
+      message: `Join my Nom party with code ${party.joinCode}`,
+    });
+  };
+
+  const handleStartSwiping = async () => {
+    setStarting(true);
+    try {
+      router.replace({ pathname: '/party/swipe', params: { partyId } });
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to start swiping.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const isSwiping = party?.status === 'swiping';
+  const expected = party?.expectedMembers ?? 0;
+  const openMode = expected === 0;
+  const joinedCount = members.length;
+  const waitingSlots = openMode ? 0 : Math.max(0, expected - joinedCount);
+
   if (joining || loading || isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.bg,
+        }}
+      >
+        <ActivityIndicator color={theme.action} />
         {joining && (
-          <Text style={styles.loadingText}>Joining party...</Text>
+          <NomText variant="bodyMd" soft style={{ marginTop: 12 }}>
+            Joining party...
+          </NomText>
         )}
       </View>
     );
   }
 
-  const getMemberBadge = (member: PartyMember) => {
-    if (member.status === 'declined') {
-      return { label: 'Declined', style: styles.badgeDeclined, textStyle: styles.badgeTextDeclined };
-    }
-    if (member.status === 'invited') {
-      return { label: 'Invited', style: styles.badgeInvited, textStyle: styles.badgeTextInvited };
-    }
-    if (member.status === 'done' || member.swipeCount >= 20) {
-      return { label: 'Noms Nominated', style: styles.badgeNominated, textStyle: styles.badgeTextNominated };
-    }
-    // joined or swiping but not done
-    return { label: 'Nominating Needed', style: styles.badgeNeeded, textStyle: styles.badgeTextNeeded };
-  };
-
-  const renderMember = ({ item, index }: { item: PartyMember; index: number }) => {
-    const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
-    const isYou = item.userId === user?.id;
-    const initial = item.displayName.charAt(0).toUpperCase();
-    const badge = getMemberBadge(item);
-
-    return (
-      <View style={styles.memberRow}>
-        <View style={[styles.memberAvatar, { backgroundColor: color }]}>
-          <Text style={styles.memberInitial}>{initial}</Text>
-        </View>
-        <View style={styles.memberInfo}>
-          <Text style={styles.memberName}>
-            {item.displayName}{isYou ? ' (you)' : ''}
-          </Text>
-          <Text style={styles.memberStatus}>
-            {item.status === 'invited' || item.status === 'declined'
-              ? 'Invited'
-              : 'Joined'}
-          </Text>
-        </View>
-        <View style={[styles.memberBadge, badge.style]}>
-          <Text style={[styles.badgeText, badge.textStyle]}>
-            {badge.label}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/')}>
-          <Text style={styles.backBtnText}>🏠</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Party Lobby</Text>
+    <SafeAreaView
+      edges={['top', 'bottom']}
+      style={{ flex: 1, backgroundColor: theme.bg }}
+    >
+      {/* Halftone wash */}
+      <View
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0 }}
+      >
+        <Halftone
+          width={420}
+          height={160}
+          color={theme.text}
+          opacity={0.07}
+          size={6}
+        />
       </View>
 
-      {/* Party Info */}
-      <View style={styles.partyInfo}>
-        <Text style={styles.partyName}>{party?.name}</Text>
-        <Text style={styles.partyMeta}>
-          {party?.zipCode} · {party?.radiusMiles} mi
-          {party?.date ? ` · ${new Date(party.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}` : ''}
-        </Text>
-        <Text style={styles.partyMeta}>
-          {party?.expectedMembers === 0
-            ? `6+ members · ${members.length} joined`
-            : `Party of ${party?.expectedMembers ?? '?'} · ${members.length} of ${party?.expectedMembers ?? '?'} joined`}
-        </Text>
+      {/* Top nav */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: SPACE[5],
+          paddingVertical: SPACE[2],
+        }}
+      >
+        <Pressable onPress={() => router.replace('/')} hitSlop={10}>
+          <NomText variant="bodyLg" soft>
+            ← leave
+          </NomText>
+        </Pressable>
+        <NomText variant="monoSm" soft uppercase>
+          BACKSTAGE
+        </NomText>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Members List */}
-      <FlatList
-        data={members}
-        keyExtractor={(item) => item.userId}
-        renderItem={renderMember}
-        ListHeaderComponent={
-          <Text style={styles.sectionTitle}>MEMBERS ({members.length})</Text>
-        }
-        contentContainerStyle={styles.listContent}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: SPACE[5] }}
         showsVerticalScrollIndicator={false}
-      />
-
-      {/* Bottom Actions */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite}>
-          <Text style={styles.inviteIcon}>📤</Text>
-          <Text style={styles.inviteBtnText}>Invite More Friends</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.startBtn, starting && styles.startBtnDisabled]}
-          onPress={handleStartSwiping}
-          disabled={starting}
+      >
+        {/* Brand row */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: SPACE[5],
+            gap: SPACE[3],
+          }}
         >
-          {starting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.startBtnText}>{isSwiping ? 'Continue Swiping 🔥' : 'Start Swiping 🔥'}</Text>
-          )}
-        </TouchableOpacity>
+          <View
+            style={{
+              width: 60,
+              height: 60,
+              transform: [{ rotate: '-3deg' }],
+            }}
+          >
+            <Splat
+              size={60}
+              color={theme.action}
+              seed={1}
+              style={{ position: 'absolute', top: 0, left: 0 }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                top: 14,
+                left: 8,
+                transform: [{ rotate: '3deg' }],
+              }}
+            >
+              <NomText variant="displayMd" color={theme.text}>
+                nom
+              </NomText>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <NomText variant="displayLg" color={theme.text}>
+              get ready
+            </NomText>
+            <NomText variant="bodyMd" soft>
+              {party?.name ?? "tonight's dinner is about to go down"}
+            </NomText>
+          </View>
+        </View>
+
+        {/* Join code card */}
+        <View style={{ paddingHorizontal: SPACE[5], marginTop: SPACE[4] }}>
+          <Pressable onPress={handleCopyCode} disabled={!party?.joinCode}>
+            <View
+              style={{
+                position: 'absolute',
+                top: 3,
+                left: 3,
+                right: -3,
+                bottom: -3,
+                borderRadius: RADIUS.lg,
+                backgroundColor: theme.borderStrong,
+              }}
+            />
+            <View
+              style={{
+                backgroundColor: COLOR.neutral.ink,
+                borderColor: theme.borderStrong,
+                borderWidth: 2,
+                borderRadius: RADIUS.lg,
+                padding: SPACE[4],
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                }}
+              >
+                <NomText
+                  variant="monoSm"
+                  color="rgba(250,245,236,0.55)"
+                  uppercase
+                >
+                  JOIN CODE
+                </NomText>
+                <NomText variant="bodySm" color="rgba(250,245,236,0.55)">
+                  tap to share
+                </NomText>
+              </View>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'baseline',
+                  marginTop: SPACE[1],
+                }}
+              >
+                <NomText
+                  variant="displayXL"
+                  color={theme.action}
+                  style={{ letterSpacing: 6, fontSize: 40 }}
+                >
+                  {party?.joinCode ?? '—— — ——'}
+                </NomText>
+              </View>
+              <Bolt
+                size={26}
+                color={COLOR.brand.warn}
+                stroke={COLOR.neutral.paper}
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 16,
+                  transform: [{ rotate: '12deg' }],
+                }}
+              />
+            </View>
+          </Pressable>
+        </View>
+
+        {/* IN THE ROOM */}
+        <View style={{ paddingHorizontal: SPACE[5], marginTop: SPACE[5] }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: SPACE[2],
+            }}
+          >
+            <NomText variant="monoSm" soft uppercase>
+              IN THE ROOM
+            </NomText>
+            <NomText variant="bodyMd" soft>
+              {openMode
+                ? `${joinedCount} joined`
+                : `${joinedCount} of ${expected}`}
+            </NomText>
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: SPACE[2],
+            }}
+          >
+            {members.map((m, i) => (
+              <MemberSticker
+                key={m.userId}
+                member={m}
+                index={i}
+                isYou={m.userId === user?.id}
+              />
+            ))}
+            {Array.from({ length: waitingSlots }).map((_, i) => (
+              <WaitingSticker key={`slot-${i}`} index={joinedCount + i} />
+            ))}
+          </View>
+        </View>
+
+        {/* Host note */}
+        {party?.creatorId && (
+          <View style={{ paddingHorizontal: SPACE[5], marginTop: SPACE[4] }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: SPACE[2],
+                padding: SPACE[3],
+                backgroundColor: theme.surface,
+                borderRadius: RADIUS.md,
+                borderWidth: 1.5,
+                borderColor: theme.border,
+              }}
+            >
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
+                  backgroundColor: theme.action,
+                  borderWidth: 1.5,
+                  borderColor: theme.borderStrong,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <NomText variant="headingMd" color={theme.text}>
+                  ?
+                </NomText>
+              </View>
+              <NomText variant="bodyMd" soft style={{ flex: 1 }}>
+                {hostName(party?.creatorId, members) ?? 'Host'} is running this
+                one · {party?.radiusMiles ?? '?'}mi radius
+              </NomText>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Bottom actions */}
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: SPACE[2],
+          paddingHorizontal: SPACE[5],
+          paddingTop: SPACE[2],
+          paddingBottom: SPACE[4],
+        }}
+      >
+        <NomButton
+          label="invite ↗"
+          variant="secondary"
+          compact
+          onPress={handleInvite}
+        />
+        <View style={{ flex: 1 }}>
+          <NomButton
+            label={isSwiping ? 'RESUME →' : 'BEGIN! →'}
+            variant="primary"
+            loading={starting}
+            stretch
+            onPress={handleStartSwiping}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
+// ─── Helpers ───
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  loadingText: { marginTop: 12, fontSize: 15, color: COLORS.textLight },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 12, backgroundColor: '#fff',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  backBtnText: { fontSize: 18 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  partyInfo: { alignItems: 'center', marginBottom: 24 },
-  partyName: { fontSize: 24, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  partyMeta: { fontSize: 14, color: COLORS.textLight },
-  listContent: { paddingHorizontal: 24 },
-  sectionTitle: {
-    fontSize: 13, fontWeight: '700', letterSpacing: 1,
-    color: COLORS.textLight, marginBottom: 12,
-  },
-  memberRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
-  },
-  memberAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  memberInitial: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  memberInfo: { flex: 1 },
-  memberName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  memberStatus: { fontSize: 12, color: COLORS.textLight },
-  memberBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeDeclined: { backgroundColor: 'rgba(231,76,60,0.12)' },
-  badgeTextDeclined: { color: COLORS.danger },
-  badgeInvited: { backgroundColor: 'rgba(255,107,53,0.12)' },
-  badgeTextInvited: { color: COLORS.primary },
-  badgeNeeded: { backgroundColor: 'rgba(108,92,231,0.12)' },
-  badgeTextNeeded: { color: '#6c5ce7' },
-  badgeNominated: { backgroundColor: 'rgba(46,204,113,0.12)' },
-  badgeTextNominated: { color: COLORS.success },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  bottomActions: { paddingHorizontal: 24, paddingBottom: 40, paddingTop: 16 },
-  inviteBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    padding: 16, borderWidth: 2, borderColor: COLORS.border, borderRadius: 14,
-    backgroundColor: '#fff', marginBottom: 12,
-  },
-  inviteIcon: { fontSize: 16 },
-  inviteBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  startBtn: {
-    backgroundColor: COLORS.primary, borderRadius: 16,
-    padding: 18, alignItems: 'center',
-  },
-  startBtnDisabled: { opacity: 0.7 },
-  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-});
+function hostName(creatorId: string, members: PartyMember[]): string | null {
+  const host = members.find((m) => m.userId === creatorId);
+  return host?.displayName ?? null;
+}
+
+const TILTS = [-5, 3, -3, 4, -2, 2];
+
+function MemberSticker({
+  member,
+  index,
+  isYou,
+}: {
+  member: PartyMember;
+  index: number;
+  isYou: boolean;
+}) {
+  const theme = useTheme();
+  const rot = TILTS[index % TILTS.length];
+  const alt = index % 2 === 0;
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACE[2],
+        paddingVertical: 6,
+        paddingLeft: 6,
+        paddingRight: 12,
+        backgroundColor: alt ? COLOR.neutral.paper : theme.surface,
+        borderColor: theme.borderStrong,
+        borderWidth: 2,
+        borderRadius: RADIUS.full,
+        transform: [{ rotate: `${rot}deg` }],
+      }}
+    >
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: 2,
+          right: -2,
+          bottom: -2,
+          backgroundColor: theme.borderStrong,
+          borderRadius: RADIUS.full,
+          zIndex: -1,
+        }}
+      />
+      <Avatar
+        name={member.displayName}
+        size={26}
+        rotation={0}
+        color={undefined}
+      />
+      <NomText variant="headingMd" color={COLOR.neutral.ink}>
+        {member.displayName}
+        {isYou ? ' (you)' : ''}
+      </NomText>
+    </View>
+  );
+}
+
+function WaitingSticker({ index }: { index: number }) {
+  const theme = useTheme();
+  const rot = TILTS[index % TILTS.length];
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACE[2],
+        paddingVertical: 6,
+        paddingLeft: 6,
+        paddingRight: 12,
+        borderColor: theme.borderStrong,
+        borderWidth: 1.5,
+        borderStyle: 'dashed',
+        borderRadius: RADIUS.full,
+        opacity: 0.55,
+        transform: [{ rotate: `${rot}deg` }],
+      }}
+    >
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          borderColor: theme.borderStrong,
+        }}
+      />
+      <NomText variant="bodyMd" soft>
+        waiting…
+      </NomText>
+    </View>
+  );
+}
