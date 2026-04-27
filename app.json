@@ -23,7 +23,11 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nomnominate.app"
+      "bundleIdentifier": "com.nomnominate.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
