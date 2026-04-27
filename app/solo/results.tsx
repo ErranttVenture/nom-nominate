@@ -155,7 +155,7 @@ export default function SoloResultsScreen() {
       >
         <IconButton name="back" size={44} onPress={() => router.back()} />
         <NomText variant="displayLg" style={{ flex: 1 }}>
-          your faves
+          your picks
         </NomText>
         <Pressable onPress={() => router.replace('/')} hitSlop={10}>
           <Icon name="check" size={22} color={theme.textSoft} />
@@ -164,8 +164,7 @@ export default function SoloResultsScreen() {
 
       <View style={{ paddingHorizontal: SPACE[5], marginBottom: SPACE[3] }}>
         <NomText variant="bodyLg" soft>
-          you liked {soloFavorites.length} restaurant
-          {soloFavorites.length !== 1 ? 's' : ''}
+          the spots you swiped right on. tap any to open in maps.
         </NomText>
       </View>
 
@@ -195,7 +194,7 @@ export default function SoloResultsScreen() {
               center
               style={{ marginTop: SPACE[2], maxWidth: 260 }}
             >
-              Swipe right on restaurants you like to add them here.
+              swipe right on spots you like to add them here.
             </NomText>
           </View>
         }
@@ -215,7 +214,7 @@ export default function SoloResultsScreen() {
       >
         <View style={{ flex: 1 }}>
           <NomButton
-            label="BROWSE AGAIN"
+            label="GO AGAIN ↻"
             variant="secondary"
             stretch
             onPress={() => router.replace('/solo')}

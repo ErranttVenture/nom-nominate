@@ -29,10 +29,10 @@ export default function HistoryScreen() {
         }}
       >
         <NomText variant="displayXL" color={theme.text}>
-          history
+          past parties
         </NomText>
         <NomText variant="bodyMd" soft style={{ marginTop: SPACE[1] }}>
-          past nominations.
+          everywhere you've nommed.
         </NomText>
       </View>
 
@@ -58,7 +58,7 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingTop: SPACE[10] }}>
             <NomText variant="displayLg" center>
-              no history yet
+              no parties yet
             </NomText>
             <NomText
               variant="bodyMd"
@@ -66,7 +66,8 @@ export default function HistoryScreen() {
               center
               style={{ marginTop: SPACE[2], maxWidth: 260 }}
             >
-              Your completed nominations will appear here.
+              start one from the home tab — or paste a friend's code to jump
+              in.
             </NomText>
           </View>
         }

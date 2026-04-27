@@ -37,21 +37,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'parties',
+          title: 'nom',
           tabBarIcon: ({ color }) => <Icon name="users" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'history',
+          title: 'past',
           tabBarIcon: ({ color }) => <Icon name="star" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'settings',
+          title: 'you',
           tabBarIcon: ({ color }) => <Icon name="settings" size={24} color={color} />,
         }}
       />

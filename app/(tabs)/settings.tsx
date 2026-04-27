@@ -87,6 +87,14 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Profile card */}
+        <NomText
+          variant="monoSm"
+          soft
+          uppercase
+          style={{ marginBottom: SPACE[2], letterSpacing: 1.5 }}
+        >
+          YOU ARE
+        </NomText>
         <Card>
           <View
             style={{
@@ -143,7 +151,7 @@ export default function SettingsScreen() {
         <View style={{ height: SPACE[6] }} />
 
         <NomButton
-          label="SIGN OUT"
+          label="LOG ME OUT"
           variant="destruct"
           stretch
           onPress={handleSignOut}

@@ -195,13 +195,16 @@ export default function SwipeScreen() {
             center
             style={{ marginTop: SPACE[2], maxWidth: 260 }}
           >
-            We couldn't find any restaurants nearby. Try a different zip.
+            we couldn't find anywhere to swipe. try a wider radius or a
+            different zip.
           </NomText>
           <View style={{ marginTop: SPACE[5] }}>
             <NomButton
-              label="GO HOME"
+              label={partyId ? 'BACK TO LOBBY ←' : 'BACK HOME ←'}
               variant="primary"
-              onPress={() => router.replace('/')}
+              onPress={() =>
+                router.replace(partyId ? `/party/${partyId}` : '/')
+              }
             />
           </View>
         </View>
@@ -308,7 +311,7 @@ export default function SwipeScreen() {
                     marginBottom: SPACE[5],
                   }}
                 >
-                  You've seen all {venuesFetched} spots within {currentRadius}mi.
+                  you've seen all {venuesFetched} spots within {currentRadius}mi.
                 </NomText>
                 {largerRadiusOptions.length > 0 ? (
                   <>
@@ -356,7 +359,7 @@ export default function SwipeScreen() {
               </>
             )}
             <NomButton
-              label="PREVIEW RESULTS"
+              label="SHOW THE LINEUP →"
               variant="primary"
               trailIcon="share"
               onPress={handlePreviewResults}

@@ -88,8 +88,7 @@ export default function PartyLobbyScreen() {
           }
           Alert.alert(
             'Could not join party',
-            err.message ||
-              'The party may no longer exist. Please ask the host for a new link.',
+            "couldn't get you into this party. it may have ended, or the link expired. ask the host for a fresh one.",
             [{ text: 'OK', onPress: () => router.replace('/') }]
           );
           setJoining(false);
@@ -303,7 +302,7 @@ export default function PartyLobbyScreen() {
                   JOIN CODE
                 </NomText>
                 <NomText variant="bodySm" color="rgba(250,245,236,0.55)">
-                  tap to share
+                  tap to copy
                 </NomText>
               </View>
               <View
@@ -409,8 +408,8 @@ export default function PartyLobbyScreen() {
                 </NomText>
               </View>
               <NomText variant="bodyMd" soft style={{ flex: 1 }}>
-                {hostName(party?.creatorId, members) ?? 'Host'} is running this
-                one · {party?.radiusMiles ?? '?'}mi radius
+                {hostName(party?.creatorId, members) ?? 'Host'} is hosting ·
+                venues loading…
               </NomText>
             </View>
           </View>
@@ -543,7 +542,7 @@ function WaitingSticker({ index }: { index: number }) {
         }}
       />
       <NomText variant="bodyMd" soft>
-        waiting…
+        waiting for a friend…
       </NomText>
     </View>
   );

@@ -247,6 +247,25 @@ export default function SuccessScreen() {
           <NomText variant="monoSm" soft uppercase>
             THE GROUP PICKED
           </NomText>
+          {venue && (
+            <>
+              <NomText
+                variant="displayLg"
+                center
+                style={{ marginTop: SPACE[2] }}
+              >
+                tonight: {venue.name}
+              </NomText>
+              <NomText
+                variant="bodyMd"
+                soft
+                center
+                style={{ marginTop: SPACE[1], maxWidth: 320 }}
+              >
+                the votes are in. {venue.name} took the crown.
+              </NomText>
+            </>
+          )}
         </View>
 
         {/* Slot machine */}

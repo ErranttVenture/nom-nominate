@@ -71,7 +71,7 @@ export default function SoloBrowseScreen() {
         console.error('Failed to load venues:', error);
         Alert.alert(
           'Error',
-          'Could not load restaurants for this area. Please try again.'
+          "couldn't load restaurants for this area. try again."
         );
       } finally {
         setLoading(false);
@@ -112,7 +112,7 @@ export default function SoloBrowseScreen() {
       }
     } catch (error) {
       console.error('Failed to load more venues:', error);
-      Alert.alert('Error', 'Could not load more restaurants. Please try again.');
+      Alert.alert('Error', "couldn't load more restaurants. try again.");
     } finally {
       setLoadingMore(false);
     }
@@ -183,8 +183,13 @@ export default function SoloBrowseScreen() {
         }}
       >
         <IconButton name="back" size={44} onPress={() => router.back()} />
-        <NomText variant="displayMd" style={{ flex: 1 }}>
-          solo browse
+        <NomText
+          variant="monoSm"
+          soft
+          uppercase
+          style={{ flex: 1, letterSpacing: 1.5 }}
+        >
+          SOLO ROUND
         </NomText>
         <NomText variant="monoSm" soft uppercase>
           {swipeCount} / {venues.length}
@@ -246,7 +251,7 @@ export default function SoloBrowseScreen() {
               center
               style={{ marginTop: SPACE[5] }}
             >
-              {soloFavorites.length} liked
+              all caught up
             </NomText>
             <NomText
               variant="bodyLg"
@@ -254,8 +259,8 @@ export default function SoloBrowseScreen() {
               center
               style={{ marginTop: SPACE[2], maxWidth: 280 }}
             >
-              See what you saved or dig for more within{' '}
-              {currentRadiusMiles + 5} mi.
+              you've seen everything within reach. expand the radius or start
+              a new round.
             </NomText>
 
             <View style={{ width: '100%', marginTop: SPACE[6] }}>
@@ -326,7 +331,7 @@ export default function SoloBrowseScreen() {
             paddingY={2}
             variant="headingMd"
           >
-            {`♥ ${soloFavorites.length} saved`}
+            {`♥ ${soloFavorites.length} saved · keep going`}
           </Sticker>
         </View>
       )}
