@@ -32,7 +32,7 @@
     "production": {
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.7-xcode-16.4"
+        "image": "macos-sequoia-15.6-xcode-16.4"
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q",
