@@ -74,7 +74,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "router": {},
