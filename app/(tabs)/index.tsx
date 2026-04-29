@@ -50,7 +50,7 @@ export default function HomeScreen() {
           soft
           style={{ marginTop: SPACE[1], maxWidth: 320 }}
         >
-          start a party with friends, or browse solo to save spots for later.
+          start a party with friends, or browse solo.
         </NomText>
       </View>
 
