@@ -1,55 +1,68 @@
 /**
- * Config plugin: targeted Swift compiler override for the ExpoModulesCore pod.
+ * Config plugin: targeted Podfile post-install fixes for Expo SDK 55 + Xcode 26
+ * + @react-native-firebase + useFrameworks:"static".
  *
- * Why:
- *   `node_modules/expo-modules-core/ExpoModulesCore.podspec` declares
- *     s.swift_version = '6.0'
- *   which forces Swift 6 language mode (strict concurrency) on that pod's
- *   compilation target. The ExpoModulesCore source in 55.0.x does not satisfy
- *   Swift 6 strict concurrency — non-Sendable closures, MainActor-isolated
- *   methods used to satisfy nonisolated protocol requirements, etc. — so
- *   `xcodebuild` archive fails on every Xcode 16.x.
+ * Two pod-target-scoped overrides, applied via a single post_install hook:
  *
- * What this plugin does:
- *   Adds a Podfile post_install hook that sets, ONLY for the `ExpoModulesCore`
- *   pod target:
- *     SWIFT_VERSION = 5.10
- *     SWIFT_STRICT_CONCURRENCY = minimal
+ * 1. ExpoModulesCore — Swift 6 language mode workaround
+ *    The podspec declares s.swift_version = '6.0', but the source doesn't
+ *    satisfy Swift 6 strict concurrency. Three syntactic Swift-6-only
+ *    @MainActor positions are patched via patch-package (see
+ *    patches/expo-modules-core+*); the build settings here drop the language
+ *    mode to 5.10 and SWIFT_STRICT_CONCURRENCY to minimal so the rest of the
+ *    Sendable-closure / actor-isolation issues don't trip.
  *
- *   In Swift 6 language mode (the podspec default), `SWIFT_STRICT_CONCURRENCY`
- *   alone cannot disable the checks — they're language semantics, not optional
- *   warnings. Dropping to Swift 5.10 sidesteps that, but the pod's source uses
- *   three Swift 6-only conformance positions for `@MainActor`. Those are
- *   patched separately via `patch-package` (see patches/expo-modules-core+*).
+ * 2. RNFB* (React Native Firebase) — modular header gate workaround
+ *    With useFrameworks:"static", RNFB's auto-generated framework modules
+ *    (RNFBApp.RCTConvert_FIRApp, etc.) include public React-Core headers like
+ *    <React/RCTConvert.h>. React-Core is not built as a modular pod, so Clang
+ *    raises -Werror,-Wnon-modular-include-in-framework-module. Setting
+ *    CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES on the RNFB
+ *    pod targets opts those targets out of the strict check. This is the
+ *    documented Firebase + RN + frameworks workaround.
  *
- *   This override is scoped to a single pod's build target. It does NOT touch
- *   the application target, ExpoModulesCore source, or any other pod —
- *   concurrency checks for the rest of the codebase remain at Swift 6 strict.
+ * Both overrides are scoped to specific pod targets — the application target
+ * and other pods are unaffected.
  *
- * Reference:
- *   Apple — SWIFT_STRICT_CONCURRENCY build setting:
- *     https://developer.apple.com/documentation/xcode/build-settings-reference#Strict-Concurrency-Checking
- *   Swift 6 migration guide:
- *     https://www.swift.org/migration/documentation/migrationguide/
+ * References:
+ *   - https://developer.apple.com/documentation/xcode/build-settings-reference#Strict-Concurrency-Checking
+ *   - https://www.swift.org/migration/documentation/migrationguide/
+ *   - https://github.com/invertase/react-native-firebase/issues (search "modular_headers" / "use_frameworks")
  */
 const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = '# ExpoModulesCore Swift pin (with-expo-modules-core-swift-pin)';
+const MARKER = '# Expo SDK 55 + Xcode 26 compat fixes (with-expo-modules-core-swift-pin)';
 
-const POST_INSTALL_BLOCK = `
-${MARKER}
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    if target.name == 'ExpoModulesCore'
-      target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.10'
-        config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+const RNFB_TARGETS = [
+  'RNFBApp',
+  'RNFBAuth',
+  'RNFBFirestore',
+  'RNFBMessaging',
+];
+
+const RNFB_LIST_RUBY = RNFB_TARGETS.map((t) => `'${t}'`).join(', ');
+
+const HOOK_BODY = `    ${MARKER}
+    installer.pods_project.targets.each do |target|
+      if target.name == 'ExpoModulesCore'
+        target.build_configurations.each do |config|
+          config.build_settings['SWIFT_VERSION'] = '5.10'
+          config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+        end
+      end
+      if [${RNFB_LIST_RUBY}].include?(target.name)
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        end
       end
     end
-  end
-end
+`;
+
+const STANDALONE_BLOCK = `
+post_install do |installer|
+${HOOK_BODY}end
 `;
 
 const withExpoModulesCoreSwiftPin = (config) => {
@@ -66,28 +79,16 @@ const withExpoModulesCoreSwiftPin = (config) => {
       // Look for an existing post_install block — if Expo has already added one,
       // append to it instead of declaring a duplicate (Ruby disallows two
       // `post_install` blocks at the same scope).
-      const existingBlock = /post_install do \|installer\|([\s\S]*?)\nend\n/;
-      const match = contents.match(existingBlock);
+      const existingBlock = /post_install do \|installer\|/;
 
-      if (match) {
-        const insertion = `
-    ${MARKER}
-    installer.pods_project.targets.each do |target|
-      if target.name == 'ExpoModulesCore'
-        target.build_configurations.each do |config|
-          config.build_settings['SWIFT_VERSION'] = '5.10'
-          config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-        end
-      end
-    end
-`;
+      if (existingBlock.test(contents)) {
         // Insert right after `post_install do |installer|` line.
         contents = contents.replace(
-          /post_install do \|installer\|/,
-          `post_install do |installer|${insertion}`
+          existingBlock,
+          (m) => `${m}\n${HOOK_BODY}`
         );
       } else {
-        contents += `\n${POST_INSTALL_BLOCK}\n`;
+        contents += `\n${STANDALONE_BLOCK}\n`;
       }
 
       fs.writeFileSync(podfilePath, contents);
