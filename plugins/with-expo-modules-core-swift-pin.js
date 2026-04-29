@@ -13,12 +13,13 @@
  * What this plugin does:
  *   Adds a Podfile post_install hook that sets, ONLY for the `ExpoModulesCore`
  *   pod target:
- *     SWIFT_VERSION = 5.10
  *     SWIFT_STRICT_CONCURRENCY = minimal
  *
- *   The code itself targets Swift 5.5+ semantics (uses @MainActor and Sendable
- *   conformances), so dropping the language mode to 5.10 lets it compile while
- *   preserving the runtime behavior.
+ *   The pod's source uses Swift 6-only syntactic positions for @MainActor, so
+ *   we keep the SWIFT_VERSION at 6.0 (the podspec default) — necessary for the
+ *   parser to accept those positions — but disable the strict concurrency
+ *   checks that the source doesn't satisfy. This is the canonical workaround
+ *   for "library declared as Swift 6 but written like Swift 5.5".
  *
  *   This override is scoped to a single pod's build target. It does NOT touch
  *   the application target, ExpoModulesCore source, or any other pod —
@@ -42,7 +43,6 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     if target.name == 'ExpoModulesCore'
       target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.10'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
       end
     end
@@ -73,7 +73,6 @@ const withExpoModulesCoreSwiftPin = (config) => {
     installer.pods_project.targets.each do |target|
       if target.name == 'ExpoModulesCore'
         target.build_configurations.each do |config|
-          config.build_settings['SWIFT_VERSION'] = '5.10'
           config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
         end
       end
