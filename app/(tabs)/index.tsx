@@ -40,10 +40,24 @@ export default function HomeScreen() {
 
   const renderHeader = () => (
     <View>
+      {/* Hero */}
+      <View style={{ marginBottom: SPACE[5] }}>
+        <NomText variant="displayXL" color={theme.text}>
+          what's for dinner?
+        </NomText>
+        <NomText
+          variant="bodyLg"
+          soft
+          style={{ marginTop: SPACE[1], maxWidth: 320 }}
+        >
+          start a party with friends, or browse solo.
+        </NomText>
+      </View>
+
       {/* Primary CTA */}
       <View style={{ marginBottom: SPACE[3] }}>
         <NomButton
-          label="NEW PARTY"
+          label="THROW A PARTY →"
           variant="primary"
           leadIcon="plus"
           stretch
@@ -54,7 +68,7 @@ export default function HomeScreen() {
       {/* Secondary */}
       <View style={{ marginBottom: SPACE[6] }}>
         <NomButton
-          label="BROWSE SOLO"
+          label="SOLO BROWSE ↗"
           variant="secondary"
           leadIcon="forkknife"
           stretch

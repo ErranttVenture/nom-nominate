@@ -23,7 +23,12 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nomnominate.app"
+      "bundleIdentifier": "com.nomnominate.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "16"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,7 +36,7 @@
         "backgroundColor": "#FAF5EC"
       },
       "package": "com.nomnominate.app",
-      "versionCode": 68,
+      "versionCode": 70,
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
@@ -61,7 +66,18 @@
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "expo-sharing",
+      "./plugins/with-podfile-modular-headers",
+      "./plugins/with-expo-modules-core-swift-pin"
     ],
     "extra": {
       "router": {},

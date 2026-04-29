@@ -175,7 +175,7 @@ export default function ResultsScreen() {
       {/* Header */}
       <View style={{ paddingHorizontal: SPACE[5], marginBottom: SPACE[3] }}>
         <NomText variant="displayXL" color={theme.text}>
-          the lineup
+          the group picked
         </NomText>
         <NomText variant="bodyMd" soft>
           {party?.name ?? 'party'} ·{' '}
@@ -203,7 +203,7 @@ export default function ResultsScreen() {
               center
               style={{ marginTop: SPACE[2], maxWidth: 260 }}
             >
-              Results appear once members start swiping.
+              results appear once members start swiping.
             </NomText>
           </View>
         }

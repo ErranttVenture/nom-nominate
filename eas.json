@@ -31,6 +31,10 @@
     },
     "production": {
       "autoIncrement": true,
+      "node": "20.18.0",
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nom-nominate.firebaseapp.com",
@@ -45,9 +49,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "YOUR_APPLE_ID",
-        "ascAppId": "YOUR_ASC_APP_ID",
-        "appleTeamId": "YOUR_TEAM_ID"
+        "appleId": "declercq.sean@gmail.com",
+        "ascAppId": "6764185016",
+        "appleTeamId": "65NJDW5M5J"
       },
       "android": {
         "serviceAccountKeyPath": "./google-services.json",

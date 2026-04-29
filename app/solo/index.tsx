@@ -34,7 +34,7 @@ export default function SoloSetupScreen() {
 
   const handleStart = () => {
     if (!/^\d{5}$/.test(zipCode)) {
-      Alert.alert('Invalid Zip Code', 'Please enter a valid 5-digit zip code.');
+      Alert.alert('Invalid Zip Code', 'enter a valid 5-digit zip code.');
       return;
     }
     router.push({
@@ -75,7 +75,7 @@ export default function SoloSetupScreen() {
           }}
         >
           <IconButton name="back" size={44} onPress={() => router.back()} />
-          <NomText variant="displayLg">solo browse</NomText>
+          <NomText variant="displayLg">solo round</NomText>
         </View>
 
         <ScrollView
@@ -91,7 +91,7 @@ export default function SoloSetupScreen() {
             soft
             style={{ marginBottom: SPACE[5] }}
           >
-            No party, no problem. Pop a zip, pick a radius, start swiping.
+            no friends, no problem. find your spots, save your faves.
           </NomText>
 
           {/* Zip */}
@@ -161,7 +161,7 @@ export default function SoloSetupScreen() {
           </View>
 
           <NomButton
-            label="START BROWSING"
+            label="START SWIPING →"
             variant="primary"
             leadIcon="forkknife"
             stretch

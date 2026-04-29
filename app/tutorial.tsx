@@ -199,7 +199,7 @@ export default function TutorialScreen() {
         }}
       >
         <NomButton
-          label={isLast ? "LET'S GO" : 'NEXT'}
+          label={isLast ? "LET'S GO" : 'KEEP GOING →'}
           variant="primary"
           stretch
           trailIcon={isLast ? 'bolt' : undefined}

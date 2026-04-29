@@ -104,7 +104,10 @@ export default function AuthScreen() {
     async (isResend = false) => {
       const digits = sanitizePhone(phone);
       if (!isResend && digits.length < 10) {
-        Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+        Alert.alert(
+          'hold up',
+          "that doesn't look like a 10-digit phone number. try again?"
+        );
         return;
       }
 
@@ -169,7 +172,10 @@ export default function AuthScreen() {
 
   const handleVerifyCode = useCallback(async () => {
     if (code.length !== 6) {
-      Alert.alert('Invalid Code', 'Please enter the 6-digit verification code.');
+      Alert.alert(
+        'missing digits',
+        'the code is 6 digits. fill in the rest and try again.'
+      );
       return;
     }
     if (signedInRef.current) {
@@ -185,11 +191,11 @@ export default function AuthScreen() {
 
       if (!vid) {
         Alert.alert(
-          'Session Lost',
-          'Your verification session was lost. Please request a new code.',
+          'lost the thread',
+          "we lost track of your verification. let's start over.",
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Resend Code', onPress: handleResendCode },
+            { text: 'cancel', style: 'cancel' },
+            { text: 'send a new code', onPress: handleResendCode },
           ]
         );
         return;
@@ -215,16 +221,16 @@ export default function AuthScreen() {
       ) {
         Alert.alert(
           'Code Expired',
-          'Your verification code has expired. Would you like us to send a new one?',
+          'the last code timed out. want a fresh one?',
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Resend Code', onPress: handleResendCode },
+            { text: 'cancel', style: 'cancel' },
+            { text: 'send a new code', onPress: handleResendCode },
           ]
         );
       } else if (errorCode.includes('invalid-verification-code')) {
         Alert.alert(
-          'Wrong Code',
-          'The code you entered is incorrect. Please check and try again.'
+          'not quite',
+          "that code didn't match. double-check your texts and try once more."
         );
       } else {
         Alert.alert('Error', error.message || 'Invalid verification code.');
@@ -236,7 +242,10 @@ export default function AuthScreen() {
 
   const handleSetName = useCallback(async () => {
     if (displayName.trim().length < 2) {
-      Alert.alert('Invalid Name', 'Please enter your name.');
+      Alert.alert(
+        "what's your name?",
+        'give us at least two characters so we know what to call you.'
+      );
       return;
     }
 
@@ -385,7 +394,8 @@ export default function AuthScreen() {
                 soft
                 style={{ marginBottom: SPACE[3] }}
               >
-                We sent a 6-digit code to +1{sanitizePhone(phone)}
+                we just texted a code to +1{sanitizePhone(phone)}. enter it
+                below or wait for it to auto-fill.
               </NomText>
               <TextInput
                 ref={codeInputRef}
@@ -409,7 +419,7 @@ export default function AuthScreen() {
               />
               <View style={{ marginBottom: SPACE[3] }}>
                 <NomButton
-                  label="VERIFY"
+                  label="VERIFY & GO"
                   variant="primary"
                   stretch
                   loading={loading}
@@ -427,8 +437,8 @@ export default function AuthScreen() {
               >
                 <NomText variant="headingMd" soft>
                   {resendCooldown > 0
-                    ? `resend code (${resendCooldown}s)`
-                    : 'resend code'}
+                    ? `send a new code in ${resendCooldown}s`
+                    : 'send a new code'}
                 </NomText>
               </Pressable>
               <Pressable
@@ -454,6 +464,13 @@ export default function AuthScreen() {
           {step === 'name' && (
             <View>
               <SectionLabel>WHAT SHOULD WE CALL YOU?</SectionLabel>
+              <NomText
+                variant="bodyMd"
+                soft
+                style={{ marginBottom: SPACE[3] }}
+              >
+                this is what your friends will see.
+              </NomText>
               <TextInput
                 style={[inputStyle, { marginBottom: SPACE[5] }]}
                 placeholder="Your name"

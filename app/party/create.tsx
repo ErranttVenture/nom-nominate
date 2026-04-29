@@ -82,7 +82,7 @@ export default function CreatePartyScreen() {
       return;
     }
     if (!/^\d{5}$/.test(zipCode)) {
-      Alert.alert('Invalid Zip Code', 'Please enter a valid 5-digit zip code.');
+      Alert.alert('Invalid Zip Code', 'enter a valid 5-digit zip code.');
       return;
     }
     if (!user) return;
@@ -148,9 +148,14 @@ export default function CreatePartyScreen() {
           }}
         >
           <IconButton name="back" size={44} onPress={() => router.back()} />
-          <NomText variant="displayLg" color={theme.text}>
-            new party
-          </NomText>
+          <View style={{ flex: 1 }}>
+            <NomText variant="displayLg" color={theme.text}>
+              new party
+            </NomText>
+            <NomText variant="bodyLg" soft>
+              throw together a dinner round in 30 seconds.
+            </NomText>
+          </View>
         </View>
 
         <ScrollView
@@ -267,7 +272,7 @@ export default function CreatePartyScreen() {
               >
                 <Icon name="timer" size={18} color={theme.textSoft} />
                 <NomText variant="headingMd" soft>
-                  pick a date
+                  tonight, tomorrow, or pick →
                 </NomText>
               </Pressable>
             )}
@@ -287,7 +292,7 @@ export default function CreatePartyScreen() {
             {Platform.OS === 'ios' && showDatePicker && (
               <View style={{ alignSelf: 'flex-end', marginTop: SPACE[2] }}>
                 <NomButton
-                  label="DONE"
+                  label="LOCK IT IN"
                   variant="ghost"
                   compact
                   onPress={() => setShowDatePicker(false)}
@@ -333,7 +338,7 @@ export default function CreatePartyScreen() {
 
           {/* Create Button */}
           <NomButton
-            label="CREATE PARTY"
+            label="START THE PARTY →"
             variant="primary"
             leadIcon="plus"
             stretch
