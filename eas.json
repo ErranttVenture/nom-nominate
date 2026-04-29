@@ -33,7 +33,7 @@
       "autoIncrement": true,
       "node": "20.18.0",
       "ios": {
-        "image": "macos-sonoma-14.6-xcode-16.1"
+        "image": "macos-sequoia-15.6-xcode-26.2"
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB3c0Gvh-SHmjXbXqdGMFjRstsudnutS4Q",
