@@ -28,7 +28,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "3"
+      "buildNumber": "8"
     },
     "android": {
       "adaptiveIcon": {
@@ -75,7 +75,8 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/with-expo-modules-core-swift-pin"
     ],
     "extra": {
       "router": {},
